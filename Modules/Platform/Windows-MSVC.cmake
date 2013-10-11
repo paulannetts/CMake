@@ -54,6 +54,10 @@ if(NOT CMAKE_NO_BUILD_TYPE AND CMAKE_GENERATOR MATCHES "Visual Studio")
   set (CMAKE_NO_BUILD_TYPE 1)
 endif()
 
+if (CMAKE_GENERATOR MATCHES "Windows-Phone-8")
+    set (WINDOWS_PHONE 1)
+endif()
+
 # make sure to enable languages after setting configuration types
 enable_language(RC)
 set(CMAKE_COMPILE_RESOURCE "rc <FLAGS> /fo<OBJECT> <SOURCE>")
@@ -143,6 +147,10 @@ if(WINCE)
   set(_FLAGS_CXX " /GR /EHsc")
   set(CMAKE_C_STANDARD_LIBRARIES_INIT "coredll.lib corelibc.lib ole32.lib oleaut32.lib uuid.lib commctrl.lib")
   set(CMAKE_EXE_LINKER_FLAGS_INIT "${CMAKE_EXE_LINKER_FLAGS_INIT} /NODEFAULTLIB:libc.lib /NODEFAULTLIB:oldnames.lib")
+elseif (WINDOWS_PHONE)
+  set(_FLAGS_C " /DUNICODE")
+  set(_FLAGS_CXX " /DUNICODE /GR /EHsc")
+    set(CMAKE_C_STANDARD_LIBRARIES_INIT "")
 else()
   set(_PLATFORM_DEFINES "/DWIN32")
 
@@ -160,7 +168,7 @@ else()
     set(_FLAGS_C   " /Zm1000${_FLAGS_C}")
     set(_FLAGS_CXX " /Zm1000${_FLAGS_CXX}")
   endif()
-endif(WINCE)
+endif()
 
 set(CMAKE_CXX_STANDARD_LIBRARIES_INIT "${CMAKE_C_STANDARD_LIBRARIES_INIT}")
 
@@ -179,7 +187,7 @@ if(WINCE)
   endif()
 endif()
 
-if (NOT CMAKE_MSVC_PLATFORMS)
+if (NOT MSVC_VERSION GREATER 1699)
   # only set linker flag if NOT multi-CPU architecture build
   set (CMAKE_EXE_LINKER_FLAGS_INIT
     "${CMAKE_EXE_LINKER_FLAGS_INIT} /machine:${_MACHINE_ARCH_FLAG}")

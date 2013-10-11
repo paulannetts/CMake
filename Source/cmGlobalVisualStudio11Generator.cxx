@@ -16,6 +16,7 @@
 static const char vs11Win32generatorName[] = "Visual Studio 11";
 static const char vs11Win64generatorName[] = "Visual Studio 11 Win64";
 static const char vs11ARMgeneratorName[] = "Visual Studio 11 ARM";
+static const char vs11WP8generatorName[] = "Visual Studio 11 Windows-Phone-8";
 
 class cmGlobalVisualStudio11Generator::Factory
   : public cmGlobalGeneratorFactory
@@ -37,6 +38,11 @@ public:
       return new cmGlobalVisualStudio11Generator(
         vs11ARMgeneratorName, "ARM", NULL, "ARM");
       }
+    if(!strcmp(name, vs11WP8generatorName))
+      {
+      return new cmGlobalVisualStudio11Generator(
+          vs11WP8generatorName, NULL, NULL, "Win32;ARM", "v110_wp80");
+      }
     return 0;
   }
 
@@ -53,7 +59,9 @@ public:
   virtual void GetGenerators(std::vector<std::string>& names) const {
     names.push_back(vs11Win32generatorName);
     names.push_back(vs11Win64generatorName);
-    names.push_back(vs11ARMgeneratorName); }
+    names.push_back(vs11ARMgeneratorName);
+    names.push_back(vs11WP8generatorName);
+  }
 };
 
 //----------------------------------------------------------------------------
@@ -66,7 +74,8 @@ cmGlobalGeneratorFactory* cmGlobalVisualStudio11Generator::NewFactory()
 cmGlobalVisualStudio11Generator::cmGlobalVisualStudio11Generator(
   const char* name, const char* multiPlatform,
   const char* additionalPlatformDefinition,
-  const char* defaultMultiPlatform)
+  const char* defaultMultiPlatform,
+  const char* platformToolset)
   : cmGlobalVisualStudio10Generator(name, multiPlatform,
                                    additionalPlatformDefinition)
 {
@@ -75,7 +84,7 @@ cmGlobalVisualStudio11Generator::cmGlobalVisualStudio11Generator(
   this->ExpressEdition = cmSystemTools::ReadRegistryValue(
     "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VCExpress\\11.0\\Setup\\VC;"
     "ProductDir", vc11Express, cmSystemTools::KeyWOW64_32);
-  this->PlatformToolset = "v110";
+  this->PlatformToolset = platformToolset;
   this->defaultMultiPlatform = defaultMultiPlatform;
 }
 

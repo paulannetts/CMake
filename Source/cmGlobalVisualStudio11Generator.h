@@ -21,7 +21,8 @@ class cmGlobalVisualStudio11Generator:
 {
 public:
   cmGlobalVisualStudio11Generator(const char* name,
-    const char* architectureId, const char* additionalPlatformDefinition, const char* defaultMultiPlatform);
+    const char* architectureId, const char* additionalPlatformDefinition, 
+    const char* defaultMultiPlatform, const char* platformToolset = "v110");
   static cmGlobalGeneratorFactory* NewFactory();
 
   virtual void EnableLanguage(std::vector<std::string>const& languages,

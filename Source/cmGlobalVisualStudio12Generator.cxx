@@ -68,7 +68,7 @@ cmGlobalVisualStudio12Generator::cmGlobalVisualStudio12Generator(
   const char* additionalPlatformDefinition,
   const char* defaultMultiPlatform)
   : cmGlobalVisualStudio11Generator(name, architectureId,
-                                   additionalPlatformDefinition, defaultMultiPlatform)
+                                   additionalPlatformDefinition, defaultMultiPlatform, "v120")
 {
   this->FindMakeProgramFile = "CMakeVS12FindMake.cmake";
   std::string vc12Express;
