@@ -21,7 +21,7 @@ class cmGlobalVisualStudio12Generator:
 {
 public:
   cmGlobalVisualStudio12Generator(const char* name,
-    const char* architectureId, const char* additionalPlatformDefinition);
+    const char* architectureId, const char* additionalPlatformDefinition, const char* defaultMultiPlatform);
   static cmGlobalGeneratorFactory* NewFactory();
 
   virtual void WriteSLNHeader(std::ostream& fout);

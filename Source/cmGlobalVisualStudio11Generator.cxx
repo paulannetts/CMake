@@ -25,17 +25,17 @@ public:
     if(!strcmp(name, vs11Win32generatorName))
       {
       return new cmGlobalVisualStudio11Generator(
-        vs11Win32generatorName, NULL, NULL);
+        vs11Win32generatorName, NULL, NULL, "Win32;x64");
       }
     if(!strcmp(name, vs11Win64generatorName))
       {
       return new cmGlobalVisualStudio11Generator(
-        vs11Win64generatorName, "x64", "CMAKE_FORCE_WIN64");
+        vs11Win64generatorName, "x64", "CMAKE_FORCE_WIN64", "x64");
       }
     if(!strcmp(name, vs11ARMgeneratorName))
       {
       return new cmGlobalVisualStudio11Generator(
-        vs11ARMgeneratorName, "ARM", NULL);
+        vs11ARMgeneratorName, "ARM", NULL, "ARM");
       }
     return 0;
   }
@@ -64,9 +64,10 @@ cmGlobalGeneratorFactory* cmGlobalVisualStudio11Generator::NewFactory()
 
 //----------------------------------------------------------------------------
 cmGlobalVisualStudio11Generator::cmGlobalVisualStudio11Generator(
-  const char* name, const char* architectureId,
-  const char* additionalPlatformDefinition)
-  : cmGlobalVisualStudio10Generator(name, architectureId,
+  const char* name, const char* multiPlatform,
+  const char* additionalPlatformDefinition,
+  const char* defaultMultiPlatform)
+  : cmGlobalVisualStudio10Generator(name, multiPlatform,
                                    additionalPlatformDefinition)
 {
   this->FindMakeProgramFile = "CMakeVS11FindMake.cmake";
@@ -75,6 +76,7 @@ cmGlobalVisualStudio11Generator::cmGlobalVisualStudio11Generator(
     "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VCExpress\\11.0\\Setup\\VC;"
     "ProductDir", vc11Express, cmSystemTools::KeyWOW64_32);
   this->PlatformToolset = "v110";
+  this->defaultMultiPlatform = defaultMultiPlatform;
 }
 
 //----------------------------------------------------------------------------
@@ -89,6 +91,77 @@ void cmGlobalVisualStudio11Generator::WriteSLNHeader(std::ostream& fout)
     {
     fout << "# Visual Studio 2012\n";
     }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalVisualStudio11Generator
+::EnableLanguage(std::vector<std::string>const &  lang,
+                 cmMakefile *mf, bool optional)
+{
+  cmGlobalVisualStudio10Generator::EnableLanguage(lang, mf, optional);
+  if(!mf->GetDefinition("CMAKE_MSVC_PLATFORMS"))
+  {
+  mf->AddCacheDefinition(
+    "CMAKE_MSVC_PLATFORMS",
+    this->defaultMultiPlatform.c_str(),
+    "Semicolon separated list of platforms, e.g. Win32, x64, x64, ARM ",
+    cmCacheManager::STRING);
+  }
+
+  const char* ct
+    = this->CMakeInstance->GetCacheDefinition("CMAKE_MSVC_PLATFORMS");
+  if (!ct)
+  {
+    ct = this->defaultMultiPlatform.c_str();
+  }
+  this->multiPlatforms.clear();
+  cmGeneratorExpression::Split(ct, this->multiPlatforms);
+}
+
+//----------------------------------------------------------------------------
+void
+cmGlobalVisualStudio11Generator
+::WriteSolutionConfigurations(std::ostream& fout)
+{
+  fout << "\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n";
+  for(std::vector<std::string>::iterator i = this->Configurations.begin();
+      i != this->Configurations.end(); ++i)
+    {
+      for (std::vector<std::string>::iterator j = this->multiPlatforms.begin();
+           j != this->multiPlatforms.end(); ++j)
+      {
+        fout << "\t\t" << *i << "|" << *j
+          << " = "  << *i << "|" << *j << "\n";
+      }
+    }
+  fout << "\tEndGlobalSection\n";
+}
+
+void cmGlobalVisualStudio11Generator::WriteProjectConfigurations(
+    std::ostream& fout, const char* name, cmTarget::TargetType type,
+    const std::set<std::string>& configsPartOfDefaultBuild,
+    const char* platformMapping)
+{
+  std::string guid = this->GetGUID(name);
+  for(std::vector<std::string>::iterator i = this->Configurations.begin();
+      i != this->Configurations.end(); ++i)
+  {
+    for (std::vector<std::string>::iterator j = this->multiPlatforms.begin();
+      j != this->multiPlatforms.end(); ++j)
+    {
+      fout << "\t\t{" << guid << "}." << *i
+          << ".ActiveCfg = " << *i << "|"
+          << *j << "\n";
+      std::set<std::string>::const_iterator
+        ci = configsPartOfDefaultBuild.find(*i);
+      if(!(ci == configsPartOfDefaultBuild.end()))
+      {
+      fout << "\t\t{" << guid << "}." << *i
+            << ".Build.0 = " << *i << "|"
+            << *j << "\n";
+      }
+    }
+  }
 }
 
 //----------------------------------------------------------------------------

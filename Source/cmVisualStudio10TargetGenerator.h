@@ -13,7 +13,6 @@
 #define cmVisualStudioTargetGenerator_h
 #include "cmStandardIncludes.h"
 
-class cmTarget;
 class cmMakefile;
 class cmGeneratorTarget;
 class cmGeneratedFileStream;
@@ -24,14 +23,15 @@ class cmLocalVisualStudio7Generator;
 class cmComputeLinkInformation;
 class cmVisualStudioGeneratorOptions;
 #include "cmSourceGroup.h"
+#include "cmTarget.h"
 
 class cmVisualStudio10TargetGenerator
 {
 public:
   cmVisualStudio10TargetGenerator(cmTarget* target,
                                   cmGlobalVisualStudio10Generator* gg);
-  ~cmVisualStudio10TargetGenerator();
-  void Generate();
+  virtual ~cmVisualStudio10TargetGenerator();
+  virtual void Generate();
   // used by cmVisualStudioGeneratorOptions
   void WritePlatformConfigTag(
     const char* tag,
@@ -41,6 +41,30 @@ public:
     const char* end = 0,
     std::ostream* strm = 0
     );
+
+  // needed for multi-platform projects  
+  void WritePlatformConfigTag(
+    const char* tag,
+    const char* config,
+    const char* platform,
+    int indentLevel,
+    const char* attribute = 0,
+    const char* end = 0,
+    std::ostream* strm = 0
+    );
+
+protected:
+    virtual void WriteSingleProjectConfiguration(const std::string& configuration, const std::string& platform);
+    virtual void WriteSingleProjectConfigurationValues(const std::string& configuration, const std::string& platform);
+    virtual void WriteSinglePathAndIncrementalLinkOptions(cmTarget::TargetType ttype, const std::string& configuration, const std::string& platform);
+    virtual void WriteSingleItemDefinitionGroup(const std::string& configuration, const std::string& platform);
+    virtual void WriteSingleCustomBuild(
+        const std::string& configuration, 
+        const std::string& platform, 
+        cmSourceFile* source, 
+        cmCustomCommand const &command, 
+        cmLocalVisualStudio7Generator* lg, 
+        const std::string& comment);
 
 private:
   struct ToolSource
@@ -76,7 +100,7 @@ private:
   void WriteMidlOptions(std::string const& config,
                         std::vector<std::string> const & includes);
   void OutputIncludes(std::vector<std::string> const & includes);
-  void OutputLinkIncremental(std::string const& configName);
+  void OutputLinkIncremental(std::string const& configName, std::string const& platformName);
   void WriteCustomRule(cmSourceFile* source,
                        cmCustomCommand const & command);
   void WriteCustomCommands();

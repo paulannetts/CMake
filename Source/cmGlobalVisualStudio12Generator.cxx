@@ -25,17 +25,17 @@ public:
     if(!strcmp(name, vs12Win32generatorName))
       {
       return new cmGlobalVisualStudio12Generator(
-        vs12Win32generatorName, NULL, NULL);
+        vs12Win32generatorName, NULL, NULL, "Win32;x64");
       }
     if(!strcmp(name, vs12Win64generatorName))
       {
       return new cmGlobalVisualStudio12Generator(
-        vs12Win64generatorName, "x64", "CMAKE_FORCE_WIN64");
+        vs12Win64generatorName, "x64", "CMAKE_FORCE_WIN64", "x64");
       }
     if(!strcmp(name, vs12ARMgeneratorName))
       {
       return new cmGlobalVisualStudio12Generator(
-        vs12ARMgeneratorName, "ARM", NULL);
+        vs12ARMgeneratorName, "ARM", NULL, "ARM");
       }
     return 0;
   }
@@ -65,9 +65,10 @@ cmGlobalGeneratorFactory* cmGlobalVisualStudio12Generator::NewFactory()
 //----------------------------------------------------------------------------
 cmGlobalVisualStudio12Generator::cmGlobalVisualStudio12Generator(
   const char* name, const char* architectureId,
-  const char* additionalPlatformDefinition)
+  const char* additionalPlatformDefinition,
+  const char* defaultMultiPlatform)
   : cmGlobalVisualStudio11Generator(name, architectureId,
-                                   additionalPlatformDefinition)
+                                   additionalPlatformDefinition, defaultMultiPlatform)
 {
   this->FindMakeProgramFile = "CMakeVS12FindMake.cmake";
   std::string vc12Express;

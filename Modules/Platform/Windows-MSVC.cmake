@@ -160,13 +160,13 @@ else()
     set(_FLAGS_C   " /Zm1000${_FLAGS_C}")
     set(_FLAGS_CXX " /Zm1000${_FLAGS_CXX}")
   endif()
-endif()
+endif(WINCE)
 
 set(CMAKE_CXX_STANDARD_LIBRARIES_INIT "${CMAKE_C_STANDARD_LIBRARIES_INIT}")
 
 # executable linker flags
 set (CMAKE_LINK_DEF_FILE_FLAG "/DEF:")
-# set the machine type
+
 set(_MACHINE_ARCH_FLAG ${MSVC_C_ARCHITECTURE_ID})
 if(NOT _MACHINE_ARCH_FLAG)
   set(_MACHINE_ARCH_FLAG ${MSVC_CXX_ARCHITECTURE_ID})
@@ -178,8 +178,12 @@ if(WINCE)
     set(_MACHINE_ARCH_FLAG "SH4")
   endif()
 endif()
-set (CMAKE_EXE_LINKER_FLAGS_INIT
+
+if (NOT CMAKE_MSVC_PLATFORMS)
+  # only set linker flag if NOT multi-CPU architecture build
+  set (CMAKE_EXE_LINKER_FLAGS_INIT
     "${CMAKE_EXE_LINKER_FLAGS_INIT} /machine:${_MACHINE_ARCH_FLAG}")
+endif()
 
 # add /debug and /INCREMENTAL:YES to DEBUG and RELWITHDEBINFO also add pdbtype
 # on versions that support it
