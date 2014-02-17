@@ -1,17 +1,23 @@
-# - Find JNI java libraries.
+#.rst:
+# FindJNI
+# -------
+#
+# Find JNI java libraries.
+#
 # This module finds if Java is installed and determines where the
-# include files and libraries are. It also determines what the name of
-# the library is. This code sets the following variables:
+# include files and libraries are.  It also determines what the name of
+# the library is.  This code sets the following variables:
 #
-#  JNI_INCLUDE_DIRS      = the include dirs to use
-#  JNI_LIBRARIES         = the libraries to use
-#  JNI_FOUND             = TRUE if JNI headers and libraries were found.
-#  JAVA_AWT_LIBRARY      = the path to the jawt library
-#  JAVA_JVM_LIBRARY      = the path to the jvm library
-#  JAVA_INCLUDE_PATH     = the include path to jni.h
-#  JAVA_INCLUDE_PATH2    = the include path to jni_md.h
-#  JAVA_AWT_INCLUDE_PATH = the include path to jawt.h
+# ::
 #
+#   JNI_INCLUDE_DIRS      = the include dirs to use
+#   JNI_LIBRARIES         = the libraries to use
+#   JNI_FOUND             = TRUE if JNI headers and libraries were found.
+#   JAVA_AWT_LIBRARY      = the path to the jawt library
+#   JAVA_JVM_LIBRARY      = the path to the jvm library
+#   JAVA_INCLUDE_PATH     = the include path to jni.h
+#   JAVA_INCLUDE_PATH2    = the include path to jni_md.h
+#   JAVA_AWT_INCLUDE_PATH = the include path to jawt.h
 
 #=============================================================================
 # Copyright 2001-2009 Kitware, Inc.
@@ -33,7 +39,7 @@ macro(java_append_library_directories _var)
     # 1.6.0_18 + icedtea patches. However, it would be much better to base the
     # guess on the first part of the GNU config.guess platform triplet.
     if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-        set(_java_libarch "amd64")
+        set(_java_libarch "amd64" "i386")
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^i.86$")
         set(_java_libarch "i386")
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^alpha")
@@ -46,7 +52,7 @@ macro(java_append_library_directories _var)
         # endianess of the underlying system.
         set(_java_libarch "${CMAKE_SYSTEM_PROCESSOR}" "mips" "mipsel" "mipseb")
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64")
-        set(_java_libarch "ppc64")
+        set(_java_libarch "ppc64" "ppc")
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)")
         set(_java_libarch "ppc")
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^sparc")
@@ -232,6 +238,7 @@ find_path(JAVA_INCLUDE_PATH jni.h
 
 find_path(JAVA_INCLUDE_PATH2 jni_md.h
   ${JAVA_INCLUDE_PATH}
+  ${JAVA_INCLUDE_PATH}/darwin
   ${JAVA_INCLUDE_PATH}/win32
   ${JAVA_INCLUDE_PATH}/linux
   ${JAVA_INCLUDE_PATH}/freebsd

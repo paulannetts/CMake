@@ -57,7 +57,8 @@ public:
   };
 
   static std::string Preprocess(const std::string &input,
-                                PreprocessContext context);
+                                PreprocessContext context,
+                                bool resolveRelative = false);
 
   static void Split(const std::string &input,
                     std::vector<std::string> &output);
@@ -79,12 +80,12 @@ class cmCompiledGeneratorExpression
 public:
   const char* Evaluate(cmMakefile* mf, const char* config,
                        bool quiet = false,
-                       cmTarget *headTarget = 0,
-                       cmTarget *currentTarget = 0,
+                       cmTarget const* headTarget = 0,
+                       cmTarget const* currentTarget = 0,
                        cmGeneratorExpressionDAGChecker *dagChecker = 0) const;
   const char* Evaluate(cmMakefile* mf, const char* config,
                        bool quiet,
-                       cmTarget *headTarget,
+                       cmTarget const* headTarget,
                        cmGeneratorExpressionDAGChecker *dagChecker) const;
 
   /** Get set of targets found during evaluations.  */
@@ -94,7 +95,7 @@ public:
   std::set<cmStdString> const& GetSeenTargetProperties() const
     { return this->SeenTargetProperties; }
 
-  std::set<cmTarget*> const& GetAllTargetsSeen() const
+  std::set<cmTarget const*> const& GetAllTargetsSeen() const
     { return this->AllTargetsSeen; }
 
   ~cmCompiledGeneratorExpression();
@@ -125,10 +126,10 @@ private:
   cmListFileBacktrace Backtrace;
   std::vector<cmGeneratorExpressionEvaluator*> Evaluators;
   const std::string Input;
-  bool NeedsParsing;
+  bool NeedsEvaluation;
 
   mutable std::set<cmTarget*> DependTargets;
-  mutable std::set<cmTarget*> AllTargetsSeen;
+  mutable std::set<cmTarget const*> AllTargetsSeen;
   mutable std::set<cmStdString> SeenTargetProperties;
   mutable std::string Output;
   mutable bool HadContextSensitiveCondition;

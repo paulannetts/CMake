@@ -62,8 +62,7 @@ public:
       }
 
     cmGlobalVisualStudio9Generator* ret = new cmGlobalVisualStudio9Generator(
-      name, parser.GetArchitectureFamily(), NULL);
-    ret->PlatformName = p;
+      name, p, NULL);
     ret->WindowsCEVersion = parser.GetOSVersion();
     return ret;
   }
@@ -71,11 +70,6 @@ public:
   virtual void GetDocumentation(cmDocumentationEntry& entry) const {
     entry.Name = vs9generatorName;
     entry.Brief = "Generates Visual Studio 9 2008 project files.";
-    entry.Full =
-      "It is possible to append a space followed by the platform name "
-      "to create project files for a specific target platform. E.g. "
-      "\"Visual Studio 9 2008 Win64\" will create project files for "
-      "the x64 processor; \"Visual Studio 9 2008 IA64\" for Itanium.";
   }
 
   virtual void GetGenerators(std::vector<std::string>& names) const {
@@ -102,12 +96,11 @@ cmGlobalGeneratorFactory* cmGlobalVisualStudio9Generator::NewFactory()
 
 //----------------------------------------------------------------------------
 cmGlobalVisualStudio9Generator::cmGlobalVisualStudio9Generator(
-  const char* name, const char* architectureId,
+  const char* name, const char* platformName,
   const char* additionalPlatformDefinition)
-  : cmGlobalVisualStudio8Generator(name, architectureId,
+  : cmGlobalVisualStudio8Generator(name, platformName,
                                    additionalPlatformDefinition)
 {
-  this->FindMakeProgramFile = "CMakeVS9FindMake.cmake";
 }
 
 //----------------------------------------------------------------------------

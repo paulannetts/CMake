@@ -45,5 +45,27 @@ add_executable(consumer
 target_include_directories(consumer
   PRIVATE
     $<TARGET_PROPERTY:target_include_directories,INTERFACE_INCLUDE_DIRECTORIES>
-  relative_dir
+    relative_dir
+    relative_dir/$<TARGET_PROPERTY:NAME>
 )
+
+# Test no items
+target_include_directories(consumer
+  PRIVATE
+)
+target_include_directories(consumer
+  BEFORE PRIVATE
+)
+target_include_directories(consumer
+  SYSTEM BEFORE PRIVATE
+)
+target_include_directories(consumer
+  SYSTEM PRIVATE
+)
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+add_library(imp UNKNOWN IMPORTED)
+get_target_property(_res imp INCLUDE_DIRECTORIES)
+if (_res)
+  message(SEND_ERROR "include_directories populated the INCLUDE_DIRECTORIES target property")
+endif()

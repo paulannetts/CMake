@@ -15,6 +15,8 @@
 #include "cmCommand.h"
 #include "cmGeneratorExpression.h"
 
+class cmTargetExport;
+
 /** \class cmExportFileGenerator
  * \brief Generate a file exporting targets from a build or install tree.
  *
@@ -31,9 +33,13 @@ public:
 
   /** Set the full path to the export file to generate.  */
   void SetExportFile(const char* mainFile);
+  const char *GetMainExportFileName() const;
 
   /** Set the namespace in which to place exported target names.  */
   void SetNamespace(const char* ns) { this->Namespace = ns; }
+  std::string GetNamespace() const { return this->Namespace; }
+
+  void SetExportOld(bool exportOld) { this->ExportOld = exportOld; }
 
   /** Add a configuration to be exported.  */
   void AddConfiguration(const char* config);
@@ -54,9 +60,9 @@ protected:
   void GenerateImportHeaderCode(std::ostream& os, const char* config = 0);
   void GenerateImportFooterCode(std::ostream& os);
   void GenerateImportVersionCode(std::ostream& os);
-  void GenerateImportTargetCode(std::ostream& os, cmTarget* target);
+  void GenerateImportTargetCode(std::ostream& os, cmTarget const* target);
   void GenerateImportPropertyCode(std::ostream& os, const char* config,
-                                  cmTarget* target,
+                                  cmTarget const* target,
                                   ImportPropertyMap const& properties);
   void GenerateImportedFileChecksCode(std::ostream& os, cmTarget* target,
                                       ImportPropertyMap const& properties,
@@ -76,7 +82,7 @@ protected:
                                  std::vector<std::string>& missingTargets);
   void SetImportLinkProperty(std::string const& suffix,
                              cmTarget* target, const char* propName,
-                             std::vector<std::string> const& libs,
+                             std::vector<std::string> const& entries,
                              ImportPropertyMap& properties,
                              std::vector<std::string>& missingTargets);
 
@@ -101,14 +107,18 @@ protected:
                                  cmGeneratorExpression::PreprocessContext,
                                  ImportPropertyMap &properties,
                                  std::vector<std::string> &missingTargets);
+  bool PopulateInterfaceLinkLibrariesProperty(cmTarget *target,
+                                 cmGeneratorExpression::PreprocessContext,
+                                 ImportPropertyMap &properties,
+                                 std::vector<std::string> &missingTargets);
   void PopulateInterfaceProperty(const char *propName, cmTarget *target,
                                  ImportPropertyMap &properties);
   void PopulateCompatibleInterfaceProperties(cmTarget *target,
                                  ImportPropertyMap &properties);
-  void GenerateInterfaceProperties(cmTarget *target, std::ostream& os,
+  void GenerateInterfaceProperties(cmTarget const* target, std::ostream& os,
                                    const ImportPropertyMap &properties);
   void PopulateIncludeDirectoriesInterface(
-                      cmTarget *target,
+                      cmTargetExport *target,
                       cmGeneratorExpression::PreprocessContext preprocessRule,
                       ImportPropertyMap &properties,
                       std::vector<std::string> &missingTargets);
@@ -128,8 +138,13 @@ protected:
                           std::vector<std::string> &missingTargets,
                           FreeTargetsReplace replace = NoReplaceFreeTargets);
 
+  void GenerateRequiredCMakeVersion(std::ostream& os,
+                                    const char *versionString);
+
   // The namespace in which the exports are placed in the generated file.
   std::string Namespace;
+
+  bool ExportOld;
 
   // The set of configurations to export.
   std::vector<std::string> Configurations;

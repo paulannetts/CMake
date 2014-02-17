@@ -24,12 +24,14 @@
 #include "cmComputeLinkInformation.h"
 
 #include <cmsys/auto_ptr.hxx>
+#include <cmsys/FStream.hxx>
 #include <assert.h>
 
 //----------------------------------------------------------------------------
 cmExportFileGenerator::cmExportFileGenerator()
 {
   this->AppendMode = false;
+  this->ExportOld = false;
 }
 
 //----------------------------------------------------------------------------
@@ -51,15 +53,21 @@ void cmExportFileGenerator::SetExportFile(const char* mainFile)
 }
 
 //----------------------------------------------------------------------------
+const char* cmExportFileGenerator::GetMainExportFileName() const
+{
+  return this->MainImportFile.c_str();
+}
+
+//----------------------------------------------------------------------------
 bool cmExportFileGenerator::GenerateImportFile()
 {
   // Open the output file to generate it.
-  cmsys::auto_ptr<std::ofstream> foutPtr;
+  cmsys::auto_ptr<cmsys::ofstream> foutPtr;
   if(this->AppendMode)
     {
     // Open for append.
-    cmsys::auto_ptr<std::ofstream>
-      ap(new std::ofstream(this->MainImportFile.c_str(), std::ios::app));
+    cmsys::auto_ptr<cmsys::ofstream>
+      ap(new cmsys::ofstream(this->MainImportFile.c_str(), std::ios::app));
     foutPtr = ap;
     }
   else
@@ -168,6 +176,43 @@ void cmExportFileGenerator::PopulateInterfaceProperty(const char *propName,
     }
 }
 
+void cmExportFileGenerator::GenerateRequiredCMakeVersion(std::ostream& os,
+                                                    const char *versionString)
+{
+  os << "if(CMAKE_VERSION VERSION_LESS " << versionString << ")\n"
+        "  message(FATAL_ERROR \"This file relies on consumers using "
+        "CMake " << versionString << " or greater.\")\n"
+        "endif()\n\n";
+}
+
+//----------------------------------------------------------------------------
+bool cmExportFileGenerator::PopulateInterfaceLinkLibrariesProperty(
+                      cmTarget *target,
+                      cmGeneratorExpression::PreprocessContext preprocessRule,
+                      ImportPropertyMap &properties,
+                      std::vector<std::string> &missingTargets)
+{
+  if(!target->IsLinkable())
+    {
+    return false;
+    }
+  const char *input = target->GetProperty("INTERFACE_LINK_LIBRARIES");
+  if (input)
+    {
+    std::string prepro = cmGeneratorExpression::Preprocess(input,
+                                                           preprocessRule);
+    if (!prepro.empty())
+      {
+      this->ResolveTargetsInGeneratorExpressions(prepro, target,
+                                                 missingTargets,
+                                                 ReplaceFreeTargets);
+      properties["INTERFACE_LINK_LIBRARIES"] = prepro;
+      return true;
+      }
+    }
+  return false;
+}
+
 //----------------------------------------------------------------------------
 static bool isSubDirectory(const char* a, const char* b)
 {
@@ -189,26 +234,46 @@ static bool checkInterfaceDirs(const std::string &prepro,
 
   const bool inSourceBuild = strcmp(topSourceDir, topBinaryDir) == 0;
 
+  bool hadFatalError = false;
+
   for(std::vector<std::string>::iterator li = parts.begin();
       li != parts.end(); ++li)
     {
-    if (cmGeneratorExpression::Find(*li) != std::string::npos)
+    size_t genexPos = cmGeneratorExpression::Find(*li);
+    if (genexPos == 0)
       {
       continue;
       }
-    if (strncmp(li->c_str(), "${_IMPORT_PREFIX}", 17) == 0)
+    cmake::MessageType messageType = cmake::FATAL_ERROR;
+    cmOStringStream e;
+    if (genexPos != std::string::npos)
+      {
+      switch (target->GetPolicyStatusCMP0041())
+        {
+        case cmPolicies::WARN:
+          messageType = cmake::WARNING;
+          e << target->GetMakefile()->GetPolicies()
+                      ->GetPolicyWarning(cmPolicies::CMP0041) << "\n";
+          break;
+        case cmPolicies::OLD:
+          continue;
+        case cmPolicies::REQUIRED_IF_USED:
+        case cmPolicies::REQUIRED_ALWAYS:
+        case cmPolicies::NEW:
+          hadFatalError = true;
+          break; // Issue fatal message.
+        }
+      }
+    if (cmHasLiteralPrefix(li->c_str(), "${_IMPORT_PREFIX}"))
       {
       continue;
       }
     if (!cmSystemTools::FileIsFullPath(li->c_str()))
       {
-      cmOStringStream e;
       e << "Target \"" << target->GetName() << "\" "
            "INTERFACE_INCLUDE_DIRECTORIES property contains relative path:\n"
            "  \"" << *li << "\"";
-      target->GetMakefile()->IssueMessage(cmake::FATAL_ERROR,
-                                          e.str().c_str());
-      return false;
+      target->GetMakefile()->IssueMessage(messageType, e.str().c_str());
       }
     if (isSubDirectory(li->c_str(), installDir))
       {
@@ -216,55 +281,102 @@ static bool checkInterfaceDirs(const std::string &prepro,
       }
     if (isSubDirectory(li->c_str(), topBinaryDir))
       {
-      cmOStringStream e;
       e << "Target \"" << target->GetName() << "\" "
            "INTERFACE_INCLUDE_DIRECTORIES property contains path:\n"
            "  \"" << *li << "\"\nwhich is prefixed in the build directory.";
-      target->GetMakefile()->IssueMessage(cmake::FATAL_ERROR,
-                                          e.str().c_str());
-      return false;
+      target->GetMakefile()->IssueMessage(messageType, e.str().c_str());
       }
     if (!inSourceBuild)
       {
       if (isSubDirectory(li->c_str(), topSourceDir))
         {
-        cmOStringStream e;
         e << "Target \"" << target->GetName() << "\" "
             "INTERFACE_INCLUDE_DIRECTORIES property contains path:\n"
             "  \"" << *li << "\"\nwhich is prefixed in the source directory.";
-        target->GetMakefile()->IssueMessage(cmake::FATAL_ERROR,
-                                            e.str().c_str());
-        return false;
+        target->GetMakefile()->IssueMessage(messageType, e.str().c_str());
         }
       }
     }
-  return true;
+  return !hadFatalError;
+}
+
+//----------------------------------------------------------------------------
+static void prefixItems(std::string &exportDirs)
+{
+  std::vector<std::string> entries;
+  cmGeneratorExpression::Split(exportDirs, entries);
+  exportDirs = "";
+  const char *sep = "";
+  for(std::vector<std::string>::const_iterator ei = entries.begin();
+      ei != entries.end(); ++ei)
+    {
+    exportDirs += sep;
+    sep = ";";
+    if (!cmSystemTools::FileIsFullPath(ei->c_str())
+        && ei->find("${_IMPORT_PREFIX}") == std::string::npos)
+      {
+      exportDirs += "${_IMPORT_PREFIX}/";
+      }
+    exportDirs += *ei;
+    }
 }
 
 //----------------------------------------------------------------------------
 void cmExportFileGenerator::PopulateIncludeDirectoriesInterface(
-                      cmTarget *target,
+                      cmTargetExport *tei,
                       cmGeneratorExpression::PreprocessContext preprocessRule,
                       ImportPropertyMap &properties,
                       std::vector<std::string> &missingTargets)
 {
+  cmTarget *target = tei->Target;
   assert(preprocessRule == cmGeneratorExpression::InstallInterface);
 
   const char *propName = "INTERFACE_INCLUDE_DIRECTORIES";
   const char *input = target->GetProperty(propName);
-  if (!input)
+
+  cmListFileBacktrace lfbt;
+  cmGeneratorExpression ge(lfbt);
+
+  std::string dirs = cmGeneratorExpression::Preprocess(
+                                            tei->InterfaceIncludeDirectories,
+                                            preprocessRule,
+                                            true);
+  this->ReplaceInstallPrefix(dirs);
+  cmsys::auto_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(dirs);
+  std::string exportDirs = cge->Evaluate(target->GetMakefile(), 0,
+                                         false, target);
+
+  if (cge->GetHadContextSensitiveCondition())
+    {
+    cmMakefile* mf = target->GetMakefile();
+    cmOStringStream e;
+    e << "Target \"" << target->GetName() << "\" is installed with "
+    "INCLUDES DESTINATION set to a context sensitive path.  Paths which "
+    "depend on the configuration, policy values or the link interface are "
+    "not supported.  Consider using target_include_directories instead.";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return;
+    }
+
+  if (!input && exportDirs.empty())
     {
     return;
     }
-  if (!*input)
+  if ((input && !*input) && exportDirs.empty())
     {
     // Set to empty
     properties[propName] = "";
     return;
     }
 
-  std::string prepro = cmGeneratorExpression::Preprocess(input,
-                                                          preprocessRule);
+  prefixItems(exportDirs);
+
+  std::string includes = (input?input:"");
+  const char* sep = input ? ";" : "";
+  includes += sep + exportDirs;
+  std::string prepro = cmGeneratorExpression::Preprocess(includes,
+                                                         preprocessRule,
+                                                         true);
   if (!prepro.empty())
     {
     this->ResolveTargetsInGeneratorExpressions(prepro, target,
@@ -291,7 +403,7 @@ void cmExportFileGenerator::PopulateInterfaceProperty(const char *propName,
 
 
 //----------------------------------------------------------------------------
-void getPropertyContents(cmTarget *tgt, const char *prop,
+void getPropertyContents(cmTarget const* tgt, const char *prop,
          std::set<std::string> &ifaceProperties)
 {
   const char *p = tgt->GetProperty(prop);
@@ -315,6 +427,16 @@ void getCompatibleInterfaceProperties(cmTarget *target,
 {
   cmComputeLinkInformation *info = target->GetLinkInformation(config);
 
+  if (!info)
+    {
+    cmMakefile* mf = target->GetMakefile();
+    cmOStringStream e;
+    e << "Exporting the target \"" << target->GetName() << "\" is not "
+        "allowed since its linker language cannot be determined";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return;
+    }
+
   const cmComputeLinkInformation::ItemVector &deps = info->GetItems();
 
   for(cmComputeLinkInformation::ItemVector::const_iterator li =
@@ -331,6 +453,12 @@ void getCompatibleInterfaceProperties(cmTarget *target,
     getPropertyContents(li->Target,
                         "COMPATIBLE_INTERFACE_STRING",
                         ifaceProperties);
+    getPropertyContents(li->Target,
+                        "COMPATIBLE_INTERFACE_NUMBER_MIN",
+                        ifaceProperties);
+    getPropertyContents(li->Target,
+                        "COMPATIBLE_INTERFACE_NUMBER_MAX",
+                        ifaceProperties);
     }
 }
 
@@ -343,21 +471,32 @@ void cmExportFileGenerator::PopulateCompatibleInterfaceProperties(
                                 target, properties);
   this->PopulateInterfaceProperty("COMPATIBLE_INTERFACE_STRING",
                                 target, properties);
+  this->PopulateInterfaceProperty("COMPATIBLE_INTERFACE_NUMBER_MIN",
+                                target, properties);
+  this->PopulateInterfaceProperty("COMPATIBLE_INTERFACE_NUMBER_MAX",
+                                target, properties);
 
   std::set<std::string> ifaceProperties;
 
   getPropertyContents(target, "COMPATIBLE_INTERFACE_BOOL", ifaceProperties);
   getPropertyContents(target, "COMPATIBLE_INTERFACE_STRING", ifaceProperties);
+  getPropertyContents(target, "COMPATIBLE_INTERFACE_NUMBER_MIN",
+                      ifaceProperties);
+  getPropertyContents(target, "COMPATIBLE_INTERFACE_NUMBER_MAX",
+                      ifaceProperties);
 
-  getCompatibleInterfaceProperties(target, ifaceProperties, 0);
-
-  std::vector<std::string> configNames;
-  target->GetMakefile()->GetConfigurations(configNames);
-
-  for (std::vector<std::string>::const_iterator ci = configNames.begin();
-    ci != configNames.end(); ++ci)
+  if (target->GetType() != cmTarget::INTERFACE_LIBRARY)
     {
-    getCompatibleInterfaceProperties(target, ifaceProperties, ci->c_str());
+    getCompatibleInterfaceProperties(target, ifaceProperties, 0);
+
+    std::vector<std::string> configNames;
+    target->GetMakefile()->GetConfigurations(configNames);
+
+    for (std::vector<std::string>::const_iterator ci = configNames.begin();
+      ci != configNames.end(); ++ci)
+      {
+      getCompatibleInterfaceProperties(target, ifaceProperties, ci->c_str());
+      }
     }
 
   for (std::set<std::string>::const_iterator it = ifaceProperties.begin();
@@ -369,7 +508,7 @@ void cmExportFileGenerator::PopulateCompatibleInterfaceProperties(
 }
 
 //----------------------------------------------------------------------------
-void cmExportFileGenerator::GenerateInterfaceProperties(cmTarget *target,
+void cmExportFileGenerator::GenerateInterfaceProperties(cmTarget const* target,
                                         std::ostream& os,
                                         const ImportPropertyMap &properties)
 {
@@ -395,7 +534,7 @@ cmExportFileGenerator::AddTargetNamespace(std::string &input,
 {
   cmMakefile *mf = target->GetMakefile();
 
-  cmTarget *tgt = mf->FindTargetToUse(input.c_str());
+  cmTarget *tgt = mf->FindTargetToUse(input);
   if (!tgt)
     {
     return false;
@@ -560,6 +699,7 @@ cmExportFileGenerator
 
   if (iface->ImplementationIsInterface)
     {
+    // Policy CMP0022 must not be NEW.
     this->SetImportLinkProperty(suffix, target,
                                 "IMPORTED_LINK_INTERFACE_LIBRARIES",
                                 iface->Libraries, properties, missingTargets);
@@ -580,6 +720,22 @@ cmExportFileGenerator
     }
   else
     {
+    return;
+    }
+
+  const bool newCMP0022Behavior =
+                        target->GetPolicyStatusCMP0022() != cmPolicies::WARN
+                     && target->GetPolicyStatusCMP0022() != cmPolicies::OLD;
+
+  if(newCMP0022Behavior && !this->ExportOld)
+    {
+    cmMakefile *mf = target->GetMakefile();
+    cmOStringStream e;
+    e << "Target \"" << target->GetName() << "\" has policy CMP0022 enabled, "
+         "but also has old-style LINK_INTERFACE_LIBRARIES properties "
+         "populated, but it was exported without the "
+         "EXPORT_LINK_INTERFACE_LIBRARIES to export the old-style properties";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
     return;
     }
 
@@ -649,9 +805,10 @@ cmExportFileGenerator
                                 "IMPORTED_LINK_INTERFACE_LANGUAGES",
                                 iface->Languages, properties, missingTargets);
 
+    std::vector<std::string> dummy;
     this->SetImportLinkProperty(suffix, target,
                                 "IMPORTED_LINK_DEPENDENT_LIBRARIES",
-                                iface->SharedDeps, properties, missingTargets);
+                                iface->SharedDeps, properties, dummy);
     if(iface->Multiplicity > 0)
       {
       std::string prop = "IMPORTED_LINK_INTERFACE_MULTIPLICITY";
@@ -669,36 +826,36 @@ cmExportFileGenerator
 ::SetImportLinkProperty(std::string const& suffix,
                         cmTarget* target,
                         const char* propName,
-                        std::vector<std::string> const& libs,
+                        std::vector<std::string> const& entries,
                         ImportPropertyMap& properties,
                         std::vector<std::string>& missingTargets
                        )
 {
-  // Skip the property if there are no libraries.
-  if(libs.empty())
+  // Skip the property if there are no entries.
+  if(entries.empty())
     {
     return;
     }
 
   // Construct the property value.
-  std::string link_libs;
+  std::string link_entries;
   const char* sep = "";
-  for(std::vector<std::string>::const_iterator li = libs.begin();
-      li != libs.end(); ++li)
+  for(std::vector<std::string>::const_iterator li = entries.begin();
+      li != entries.end(); ++li)
     {
     // Separate this from the previous entry.
-    link_libs += sep;
+    link_entries += sep;
     sep = ";";
 
     std::string temp = *li;
     this->AddTargetNamespace(temp, target, missingTargets);
-    link_libs += temp;
+    link_entries += temp;
     }
 
   // Store the property.
   std::string prop = propName;
   prop += suffix;
-  properties[prop] = link_libs;
+  properties[prop] = link_entries;
 }
 
 
@@ -742,7 +899,9 @@ void cmExportFileGenerator::GenerateImportVersionCode(std::ostream& os)
 void cmExportFileGenerator::GenerateExpectedTargetsCode(std::ostream& os,
                                             const std::string &expectedTargets)
 {
-  os << "set(_targetsDefined)\n"
+  os << "# Protect against multiple inclusion, which would fail when already "
+        "imported targets are added once more.\n"
+        "set(_targetsDefined)\n"
         "set(_targetsNotDefined)\n"
         "set(_expectedTargets)\n"
         "foreach(_expectedTarget " << expectedTargets << ")\n"
@@ -772,7 +931,7 @@ void cmExportFileGenerator::GenerateExpectedTargetsCode(std::ostream& os,
 //----------------------------------------------------------------------------
 void
 cmExportFileGenerator
-::GenerateImportTargetCode(std::ostream& os, cmTarget* target)
+::GenerateImportTargetCode(std::ostream& os, cmTarget const* target)
 {
   // Construct the imported target name.
   std::string targetName = this->Namespace;
@@ -797,6 +956,9 @@ cmExportFileGenerator
       break;
     case cmTarget::UNKNOWN_LIBRARY:
       os << "add_library(" << targetName << " UNKNOWN IMPORTED)\n";
+      break;
+    case cmTarget::INTERFACE_LIBRARY:
+      os << "add_library(" << targetName << " INTERFACE IMPORTED)\n";
       break;
     default:  // should never happen
       break;
@@ -835,7 +997,7 @@ cmExportFileGenerator
 void
 cmExportFileGenerator
 ::GenerateImportPropertyCode(std::ostream& os, const char* config,
-                             cmTarget* target,
+                             cmTarget const* target,
                              ImportPropertyMap const& properties)
 {
   // Construct the imported target name.

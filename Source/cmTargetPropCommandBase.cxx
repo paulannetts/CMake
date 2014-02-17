@@ -19,19 +19,24 @@ bool cmTargetPropCommandBase
 ::HandleArguments(std::vector<std::string> const& args, const char *prop,
                  ArgumentFlags flags)
 {
-  if(args.size() < 3)
+  if(args.size() < 2)
     {
     this->SetError("called with incorrect number of arguments");
     return false;
     }
 
   // Lookup the target for which libraries are specified.
+  if (this->Makefile->IsAlias(args[0]))
+    {
+    this->SetError("can not be used on an ALIAS target.");
+    return false;
+    }
   this->Target =
     this->Makefile->GetCMakeInstance()
     ->GetGlobalGenerator()->FindTarget(0, args[0].c_str());
   if(!this->Target)
     {
-    this->Target = this->Makefile->FindTargetToUse(args[0].c_str());
+    this->Target = this->Makefile->FindTargetToUse(args[0]);
     }
   if(!this->Target)
     {
@@ -42,18 +47,31 @@ bool cmTargetPropCommandBase
     && (this->Target->GetType() != cmTarget::STATIC_LIBRARY)
     && (this->Target->GetType() != cmTarget::OBJECT_LIBRARY)
     && (this->Target->GetType() != cmTarget::MODULE_LIBRARY)
+    && (this->Target->GetType() != cmTarget::INTERFACE_LIBRARY)
     && (this->Target->GetType() != cmTarget::EXECUTABLE))
     {
     this->SetError("called with non-compilable target type");
     return false;
     }
 
+  bool system = false;
   unsigned int argIndex = 1;
+
+  if ((flags & PROCESS_SYSTEM) && args[argIndex] == "SYSTEM")
+    {
+    if (args.size() < 3)
+      {
+      this->SetError("called with incorrect number of arguments");
+      return false;
+      }
+    system = true;
+    ++argIndex;
+    }
 
   bool prepend = false;
   if ((flags & PROCESS_BEFORE) && args[argIndex] == "BEFORE")
     {
-    if (args.size() < 4)
+    if (args.size() < 3)
       {
       this->SetError("called with incorrect number of arguments");
       return false;
@@ -66,7 +84,7 @@ bool cmTargetPropCommandBase
 
   while (argIndex < args.size())
     {
-    if (!this->ProcessContentArgs(args, argIndex, prepend))
+    if (!this->ProcessContentArgs(args, argIndex, prepend, system))
       {
       return false;
       }
@@ -77,7 +95,7 @@ bool cmTargetPropCommandBase
 //----------------------------------------------------------------------------
 bool cmTargetPropCommandBase
 ::ProcessContentArgs(std::vector<std::string> const& args,
-                     unsigned int &argIndex, bool prepend)
+                     unsigned int &argIndex, bool prepend, bool system)
 {
   const std::string scope = args[argIndex];
 
@@ -95,6 +113,14 @@ bool cmTargetPropCommandBase
     return false;
     }
 
+  if (this->Target->GetType() == cmTarget::INTERFACE_LIBRARY
+      && scope != "INTERFACE")
+    {
+    this->SetError("may only be set INTERFACE properties on INTERFACE "
+      "targets");
+    return false;
+    }
+
   ++argIndex;
 
   std::vector<std::string> content;
@@ -105,12 +131,12 @@ bool cmTargetPropCommandBase
         || args[i] == "PRIVATE"
         || args[i] == "INTERFACE" )
       {
-      this->PopulateTargetProperies(scope, content, prepend);
+      this->PopulateTargetProperies(scope, content, prepend, system);
       return true;
       }
     content.push_back(args[i]);
     }
-  this->PopulateTargetProperies(scope, content, prepend);
+  this->PopulateTargetProperies(scope, content, prepend, system);
   return true;
 }
 
@@ -118,27 +144,35 @@ bool cmTargetPropCommandBase
 void cmTargetPropCommandBase
 ::PopulateTargetProperies(const std::string &scope,
                           const std::vector<std::string> &content,
-                          bool prepend)
+                          bool prepend, bool system)
 {
   if (scope == "PRIVATE" || scope == "PUBLIC")
     {
-    this->HandleDirectContent(this->Target, content, prepend);
+    this->HandleDirectContent(this->Target, content, prepend, system);
     }
   if (scope == "INTERFACE" || scope == "PUBLIC")
     {
-    if (prepend)
-      {
-      const std::string propName = std::string("INTERFACE_") + this->Property;
-      const char *propValue = this->Target->GetProperty(propName.c_str());
-      const std::string totalContent = this->Join(content) + (propValue
-                                                ? std::string(";") + propValue
-                                                : std::string());
-      this->Target->SetProperty(propName.c_str(), totalContent.c_str());
-      }
-    else
-      {
-      this->Target->AppendProperty(("INTERFACE_" + this->Property).c_str(),
-                                   this->Join(content).c_str());
-      }
+    this->HandleInterfaceContent(this->Target, content, prepend, system);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmTargetPropCommandBase::HandleInterfaceContent(cmTarget *tgt,
+                                  const std::vector<std::string> &content,
+                                  bool prepend, bool)
+{
+  if (prepend)
+    {
+    const std::string propName = std::string("INTERFACE_") + this->Property;
+    const char *propValue = tgt->GetProperty(propName.c_str());
+    const std::string totalContent = this->Join(content) + (propValue
+                                              ? std::string(";") + propValue
+                                              : std::string());
+    tgt->SetProperty(propName.c_str(), totalContent.c_str());
+    }
+  else
+    {
+    tgt->AppendProperty(("INTERFACE_" + this->Property).c_str(),
+                          this->Join(content).c_str());
     }
 }

@@ -28,9 +28,6 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
     if(DEFINED CMAKE_${lang}_VERBOSE_FLAG)
       set(CMAKE_FLAGS "-DCMAKE_EXE_LINKER_FLAGS=${CMAKE_${lang}_VERBOSE_FLAG}")
     endif()
-    if(CMAKE_${lang}_COMPILER_TARGET)
-      set(CMAKE_FLAGS "${CMAKE_FLAGS} -DCMAKE_${lang}_COMPILER_TARGET=${CMAKE_${lang}_COMPILER_TARGET}")
-    endif()
     try_compile(CMAKE_${lang}_ABI_COMPILED
       ${CMAKE_BINARY_DIR} ${src}
       CMAKE_FLAGS "${CMAKE_FLAGS}"
@@ -41,6 +38,7 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
                   "--no-warn-unused-cli"
       OUTPUT_VARIABLE OUTPUT
       COPY_FILE "${BIN}"
+      COPY_FILE_ERROR _copy_error
       )
     # Move result from cache to normal variable.
     set(CMAKE_${lang}_ABI_COMPILED ${CMAKE_${lang}_ABI_COMPILED})
@@ -48,7 +46,7 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
     set(CMAKE_${lang}_ABI_COMPILED ${CMAKE_${lang}_ABI_COMPILED} PARENT_SCOPE)
 
     # Load the resulting information strings.
-    if(CMAKE_${lang}_ABI_COMPILED)
+    if(CMAKE_${lang}_ABI_COMPILED AND NOT _copy_error)
       message(STATUS "Detecting ${lang} compiler ABI info - done")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
         "Detecting ${lang} compiler ABI info compiled with the following output:\n${OUTPUT}\n\n")
@@ -131,7 +129,7 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
     else()
       message(STATUS "Detecting ${lang} compiler ABI info - failed")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Detecting ${lang} compiler ABI info failed to compile with the following output:\n${OUTPUT}\n\n")
+        "Detecting ${lang} compiler ABI info failed to compile with the following output:\n${OUTPUT}\n${_copy_error}\n\n")
     endif()
   endif()
 endfunction()

@@ -1,3 +1,9 @@
+#.rst:
+# Qt4Macros
+# ---------
+#
+#
+#
 # This file is included by FindQt4.cmake, don't include it directly.
 
 #=============================================================================
@@ -113,19 +119,17 @@ macro (QT4_CREATE_MOC_COMMAND infile outfile moc_flags moc_options moc_target)
   set (_moc_parameters ${moc_flags} ${moc_options} -o "${outfile}" "${infile}")
   string (REPLACE ";" "\n" _moc_parameters "${_moc_parameters}")
 
-  set(targetincludes)
-  set(targetdefines)
   if(moc_target)
-    list(APPEND targetincludes "$<TARGET_PROPERTY:${moc_target},INCLUDE_DIRECTORIES>")
-    list(APPEND targetdefines "$<TARGET_PROPERTY:${moc_target},COMPILE_DEFINITIONS>")
+    set (_moc_parameters_file ${_moc_parameters_file}$<$<BOOL:$<CONFIGURATION>>:_$<CONFIGURATION>>)
+    set(targetincludes "$<TARGET_PROPERTY:${moc_target},INCLUDE_DIRECTORIES>")
+    set(targetdefines "$<TARGET_PROPERTY:${moc_target},COMPILE_DEFINITIONS>")
 
     set(targetincludes "$<$<BOOL:${targetincludes}>:-I$<JOIN:${targetincludes},\n-I>\n>")
     set(targetdefines "$<$<BOOL:${targetdefines}>:-D$<JOIN:${targetdefines},\n-D>\n>")
 
     file (GENERATE
       OUTPUT ${_moc_parameters_file}
-      CONTENT "${targetdefines}${targetincludes}${targetoptions}${_moc_parameters}\n"
-      CONDITION 1
+      CONTENT "${targetdefines}${targetincludes}${_moc_parameters}\n"
     )
 
     set(targetincludes)
@@ -357,6 +361,9 @@ endmacro()
 
 
 macro(QT4_AUTOMOC)
+  if(NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 2.8.11)
+    message(DEPRECATION "The qt4_automoc macro is obsolete. Use the CMAKE_AUTOMOC feature instead.")
+  endif()
   QT4_GET_MOC_FLAGS(_moc_INCS)
 
   set(_matching_FILES )
@@ -426,15 +433,16 @@ macro(QT4_CREATE_TRANSLATION _qm_files)
        set(_ts_pro ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_ts_name}_lupdate.pro)
        set(_pro_srcs)
        foreach(_pro_src ${_my_sources})
-         set(_pro_srcs "${_pro_srcs} \"${_pro_src}\"")
+         set(_pro_srcs "${_pro_srcs} \\\n  \"${_pro_src}\"")
        endforeach()
        set(_pro_includes)
        get_directory_property(_inc_DIRS INCLUDE_DIRECTORIES)
+       list(REMOVE_DUPLICATES _inc_DIRS)
        foreach(_pro_include ${_inc_DIRS})
          get_filename_component(_abs_include "${_pro_include}" ABSOLUTE)
-         set(_pro_includes "${_pro_includes} \"${_abs_include}\"")
+         set(_pro_includes "${_pro_includes} \\\n  \"${_abs_include}\"")
        endforeach()
-       file(WRITE ${_ts_pro} "SOURCES = ${_pro_srcs}\nINCLUDEPATH = ${_pro_includes}\n")
+       file(WRITE ${_ts_pro} "SOURCES =${_pro_srcs}\nINCLUDEPATH =${_pro_includes}\n")
      endif()
      add_custom_command(OUTPUT ${_ts_file}
         COMMAND ${QT_LUPDATE_EXECUTABLE}
@@ -467,6 +475,9 @@ macro(QT4_ADD_TRANSLATION _qm_files)
 endmacro()
 
 function(qt4_use_modules _target _link_type)
+  if(NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 2.8.11)
+    message(DEPRECATION "The qt4_use_modules function is obsolete. Use target_link_libraries with IMPORTED targets instead.")
+  endif()
   if ("${_link_type}" STREQUAL "LINK_PUBLIC" OR "${_link_type}" STREQUAL "LINK_PRIVATE")
     set(modules ${ARGN})
     set(link_type ${_link_type})

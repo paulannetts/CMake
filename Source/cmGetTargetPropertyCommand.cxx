@@ -21,17 +21,59 @@ bool cmGetTargetPropertyCommand
     return false;
     }
   std::string var = args[0].c_str();
-  const char* targetName = args[1].c_str();
+  const std::string& targetName = args[1];
+  const char *prop = 0;
 
-  if(cmTarget* tgt = this->Makefile->FindTargetToUse(targetName))
+  if(args[2] == "ALIASED_TARGET")
+    {
+    if(this->Makefile->IsAlias(targetName))
+      {
+      if(cmTarget* target =
+                          this->Makefile->FindTargetToUse(targetName))
+        {
+        prop = target->GetName();
+        }
+      }
+    }
+  else if(cmTarget* tgt = this->Makefile->FindTargetToUse(targetName))
     {
     cmTarget& target = *tgt;
-    const char *prop = target.GetProperty(args[2].c_str());
-    if (prop)
+    prop = target.GetProperty(args[2].c_str());
+    }
+  else
+    {
+    bool issueMessage = false;
+    cmOStringStream e;
+    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
+    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0045))
       {
-      this->Makefile->AddDefinition(var.c_str(), prop);
-      return true;
+      case cmPolicies::WARN:
+        issueMessage = true;
+        e << this->Makefile->GetPolicies()
+                          ->GetPolicyWarning(cmPolicies::CMP0045) << "\n";
+      case cmPolicies::OLD:
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+      case cmPolicies::NEW:
+        issueMessage = true;
+        messageType = cmake::FATAL_ERROR;
       }
+    if (issueMessage)
+      {
+      e << "get_target_property() called with non-existent target \""
+        << targetName <<  "\".";
+      this->Makefile->IssueMessage(messageType, e.str().c_str());
+      if (messageType == cmake::FATAL_ERROR)
+        {
+        return false;
+        }
+      }
+    }
+  if (prop)
+    {
+    this->Makefile->AddDefinition(var.c_str(), prop);
+    return true;
     }
   this->Makefile->AddDefinition(var.c_str(), (var+"-NOTFOUND").c_str());
   return true;

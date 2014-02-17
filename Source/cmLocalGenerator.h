@@ -152,6 +152,7 @@ public:
   virtual void AppendFlagEscape(std::string& flags, const char* rawFlag);
   ///! Get the include flags for the current makefile and language
   std::string GetIncludeFlags(const std::vector<std::string> &includes,
+                              cmGeneratorTarget* target,
                               const char* lang, bool forResponseFile = false,
                               const char *config = 0);
 
@@ -166,6 +167,9 @@ public:
   {
     this->AppendDefines(defines, defines_list.c_str());
   }
+  void AppendDefines(std::set<std::string>& defines,
+                     const std::vector<std::string> &defines_vec);
+
   /**
    * Join a set of defines into a definesString with a space separator.
    */
@@ -220,6 +224,9 @@ public:
                              bool stripImplicitInclDirs = true);
   void AddCompileOptions(std::string& flags, cmTarget* target,
                          const char* lang, const char* config);
+  void AddCompileDefinitions(std::set<std::string>& defines,
+                             cmTarget const* target,
+                             const char* config);
 
   /** Compute the language used to compile the given source file.  */
   const char* GetSourceFileLanguage(const cmSourceFile& source);
@@ -260,6 +267,7 @@ public:
     const char* Defines;
     const char* RuleLauncher;
     const char* DependencyFile;
+    const char* FilterPrefix;
   };
 
   /** Set whether to treat conversions to SHELL as a link script shell.  */
@@ -318,9 +326,7 @@ public:
   /**
    * Test whether compatibility is set to a given version or lower.
    */
-  bool NeedBackwardsCompatibility(unsigned int major,
-                                  unsigned int minor,
-                                  unsigned int patch = 0xFFu);
+  bool NeedBackwardsCompatibility_2_4();
 
   /**
    * Generate a Mac OS X application bundle Info.plist file.
@@ -341,6 +347,11 @@ public:
   std::string GetObjectFileNameWithoutTarget(const cmSourceFile& source,
                                              std::string const& dir_max,
                                              bool* hasSourceExtension = 0);
+
+  /** Fill out the static linker flags for the given target.  */
+  void GetStaticLibraryFlags(std::string& flags,
+                             std::string const& config,
+                             cmTarget* target);
 
   /** Fill out these strings for the given target.  Libraries to link,
    *  flags, and linkflags. */
@@ -435,8 +446,6 @@ protected:
   bool IgnoreLibPrefix;
   bool Configured;
   bool EmitUniversalBinaryFlags;
-  // A type flag is not nice. It's used only in TraceDependencies().
-  bool IsMakefileGenerator;
   // Hack for ExpandRuleVariable until object-oriented version is
   // committed.
   std::string TargetImplib;

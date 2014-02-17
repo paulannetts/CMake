@@ -92,10 +92,10 @@ else()
     get_filename_component(_CMAKE_USER_C_COMPILER_PATH "${CMAKE_C_COMPILER}" PATH)
     if(NOT _CMAKE_USER_C_COMPILER_PATH)
       find_program(CMAKE_C_COMPILER_WITH_PATH NAMES ${CMAKE_C_COMPILER})
-      mark_as_advanced(CMAKE_C_COMPILER_WITH_PATH)
       if(CMAKE_C_COMPILER_WITH_PATH)
         set(CMAKE_C_COMPILER ${CMAKE_C_COMPILER_WITH_PATH} CACHE STRING "C compiler" FORCE)
       endif()
+      unset(CMAKE_C_COMPILER_WITH_PATH CACHE)
     endif()
   endif()
   mark_as_advanced(CMAKE_C_COMPILER)
@@ -149,15 +149,21 @@ endif ()
 # e.g. powerpc-linux-gcc, arm-elf-gcc or i586-mingw32msvc-gcc, optionally
 # with a 3-component version number at the end (e.g. arm-eabi-gcc-4.5.2).
 # The other tools of the toolchain usually have the same prefix
-# NAME_WE cannot be used since then this test will fail for names lile
+# NAME_WE cannot be used since then this test will fail for names like
 # "arm-unknown-nto-qnx6.3.0-gcc.exe", where BASENAME would be
 # "arm-unknown-nto-qnx6" instead of the correct "arm-unknown-nto-qnx6.3.0-"
 if (CMAKE_CROSSCOMPILING  AND NOT _CMAKE_TOOLCHAIN_PREFIX)
 
-  if("${CMAKE_C_COMPILER_ID}" MATCHES "GNU")
+  if("${CMAKE_C_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
     get_filename_component(COMPILER_BASENAME "${CMAKE_C_COMPILER}" NAME)
-    if (COMPILER_BASENAME MATCHES "^(.+-)g?cc(-[0-9]+\\.[0-9]+\\.[0-9]+)?(\\.exe)?$")
+    if (COMPILER_BASENAME MATCHES "^(.+-)(clang|g?cc)(-[0-9]+\\.[0-9]+\\.[0-9]+)?(\\.exe)?$")
       set(_CMAKE_TOOLCHAIN_PREFIX ${CMAKE_MATCH_1})
+    elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+      set(_CMAKE_TOOLCHAIN_PREFIX ${CMAKE_C_COMPILER_TARGET}-)
+    elseif(COMPILER_BASENAME MATCHES "qcc(\\.exe)?$")
+      if(CMAKE_C_COMPILER_TARGET MATCHES "gcc_nto([^_le]+)(le)?.*$")
+        set(_CMAKE_TOOLCHAIN_PREFIX nto${CMAKE_MATCH_1}-)
+      endif()
     endif ()
 
     # if "llvm-" is part of the prefix, remove it, since llvm doesn't have its own binutils
@@ -176,15 +182,16 @@ if (CMAKE_CROSSCOMPILING  AND NOT _CMAKE_TOOLCHAIN_PREFIX)
 
 endif ()
 
-include(${CMAKE_ROOT}/Modules/CMakeClDeps.cmake)
 include(CMakeFindBinUtils)
 if(MSVC_C_ARCHITECTURE_ID)
+  include(${CMAKE_ROOT}/Modules/CMakeClDeps.cmake)
   set(SET_MSVC_C_ARCHITECTURE_ID
     "set(MSVC_C_ARCHITECTURE_ID ${MSVC_C_ARCHITECTURE_ID})")
 endif()
+
 # configure variables set in this file for fast reload later on
 configure_file(${CMAKE_ROOT}/Modules/CMakeCCompiler.cmake.in
   ${CMAKE_PLATFORM_INFO_DIR}/CMakeCCompiler.cmake
-  @ONLY IMMEDIATE # IMMEDIATE must be here for compatibility mode <= 2.0
+  @ONLY
   )
 set(CMAKE_C_COMPILER_ENV_VAR "CC")

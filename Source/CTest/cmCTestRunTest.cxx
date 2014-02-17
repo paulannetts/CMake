@@ -206,7 +206,13 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
     bool success =
       !forceFail &&  (retVal == 0 ||
       this->TestProperties->RequiredRegularExpressions.size());
-    if((success && !this->TestProperties->WillFail)
+    if(this->TestProperties->SkipReturnCode >= 0
+      && this->TestProperties->SkipReturnCode == retVal)
+      {
+      this->TestResult.Status = cmCTestTestHandler::NOT_RUN;
+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "***Skipped ");
+      }
+    else if((success && !this->TestProperties->WillFail)
       || (!success && this->TestProperties->WillFail))
       {
       this->TestResult.Status = cmCTestTestHandler::COMPLETED;
@@ -389,13 +395,13 @@ void cmCTestRunTest::MemCheckPostProcess()
   switch ( handler->MemoryTesterStyle )
     {
     case cmCTestMemCheckHandler::VALGRIND:
-      handler->PostProcessValgrindTest(this->TestResult);
+      handler->PostProcessValgrindTest(this->TestResult, this->Index);
       break;
     case cmCTestMemCheckHandler::PURIFY:
-      handler->PostProcessPurifyTest(this->TestResult);
+      handler->PostProcessPurifyTest(this->TestResult, this->Index);
       break;
     case cmCTestMemCheckHandler::BOUNDS_CHECKER:
-      handler->PostProcessBoundsCheckerTest(this->TestResult);
+      handler->PostProcessBoundsCheckerTest(this->TestResult, this->Index);
       break;
     default:
       break;
@@ -524,7 +530,7 @@ void cmCTestRunTest::ComputeArguments()
     = cmSystemTools::ConvertToOutputPath(this->ActualCommand.c_str());
 
   //Prepends memcheck args to our command string
-  this->TestHandler->GenerateTestCommand(this->Arguments);
+  this->TestHandler->GenerateTestCommand(this->Arguments, this->Index);
   for(std::vector<std::string>::iterator i = this->Arguments.begin();
       i != this->Arguments.end(); ++i)
     {

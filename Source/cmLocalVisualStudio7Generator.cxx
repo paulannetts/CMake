@@ -27,9 +27,6 @@
 
 #include <ctype.h> // for isspace
 
-// Package GUID of Intel Visual Fortran plugin to VS IDE
-#define CM_INTEL_PLUGIN_GUID "{B68A201D-CB9B-47AF-A52F-7EEC72E217E4}"
-
 static bool cmLVS6G_IsFAT(const char* dir);
 
 class cmLocalVisualStudio7GeneratorInternals
@@ -78,6 +75,10 @@ void cmLocalVisualStudio7Generator::AddHelperCommands()
     static_cast<cmGlobalVisualStudio7Generator *>(this->GlobalGenerator);
   for(cmTargets::iterator l = tgts.begin(); l != tgts.end(); l++)
     {
+    if(l->second.GetType() == cmTarget::INTERFACE_LIBRARY)
+      {
+      continue;
+      }
     const char* path = l->second.GetProperty("EXTERNAL_MSPROJECT");
     if(path)
       {
@@ -146,11 +147,10 @@ void cmLocalVisualStudio7Generator::FixGlobalTargets()
       force += "/";
       force += tgt.GetName();
       force += "_force";
-      this->Makefile->AddCustomCommandToOutput(force.c_str(), no_depends,
-                                               no_main_dependency,
-                                               force_commands, " ", 0, true);
       if(cmSourceFile* file =
-         this->Makefile->GetSourceFileWithOutput(force.c_str()))
+         this->Makefile->AddCustomCommandToOutput(
+           force.c_str(), no_depends, no_main_dependency,
+           force_commands, " ", 0, true))
         {
         tgt.AddSourceFile(file);
         }
@@ -182,6 +182,10 @@ void cmLocalVisualStudio7Generator::WriteProjectFiles()
   for(cmTargets::iterator l = tgts.begin();
       l != tgts.end(); l++)
     {
+    if(l->second.GetType() == cmTarget::INTERFACE_LIBRARY)
+      {
+      continue;
+      }
     // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
     // so don't build a projectfile for it
     if(!l->second.GetProperty("EXTERNAL_MSPROJECT"))
@@ -201,7 +205,7 @@ void cmLocalVisualStudio7Generator::WriteStampFiles()
   cmSystemTools::MakeDirectory(stampName.c_str());
   stampName += "/";
   stampName += "generate.stamp";
-  std::ofstream stamp(stampName.c_str());
+  cmsys::ofstream stamp(stampName.c_str());
   stamp << "# CMake generation timestamp file for this directory.\n";
 
   // Create a helper file so CMake can determine when it is run
@@ -212,7 +216,7 @@ void cmLocalVisualStudio7Generator::WriteStampFiles()
   // the stamp file can just be touched.
   std::string depName = stampName;
   depName += ".depend";
-  std::ofstream depFile(depName.c_str());
+  cmsys::ofstream depFile(depName.c_str());
   depFile << "# CMake generation dependency list for this directory.\n";
   std::vector<std::string> const& listFiles = this->Makefile->GetListFiles();
   for(std::vector<std::string>::const_iterator lf = listFiles.begin();
@@ -477,6 +481,8 @@ cmVS7FlagTable cmLocalVisualStudio7GeneratorFlagTable[] =
    cmVS7FlagTable::UserValueRequired | cmVS7FlagTable::SemicolonAppendable},
 
   {"AssemblerListingLocation", "Fa", "ASM List Location", "",
+   cmVS7FlagTable::UserValue},
+  {"ProgramDataBaseFileName", "Fd", "Program Database File Name", "",
    cmVS7FlagTable::UserValue},
 
   // boolean flags
@@ -746,7 +752,9 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(std::ostream& fout,
   targetOptions.ParseFinish();
   cmGeneratorTarget* gt =
     this->GlobalGenerator->GetGeneratorTarget(&target);
-  targetOptions.AddDefines(target.GetCompileDefinitions(configName).c_str());
+  std::vector<std::string> targetDefines;
+  target.GetCompileDefinitions(targetDefines, configName);
+  targetOptions.AddDefines(targetDefines);
   targetOptions.SetVerboseMakefile(
     this->Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE"));
 
@@ -918,7 +926,7 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(std::ostream& fout,
     }
 
   this->OutputTargetRules(fout, configName, target, libName);
-  this->OutputBuildTool(fout, configName, target, targetOptions.IsDebug());
+  this->OutputBuildTool(fout, configName, target, targetOptions);
   fout << "\t\t</Configuration>\n";
 }
 
@@ -939,9 +947,7 @@ cmLocalVisualStudio7Generator
 }
 
 void cmLocalVisualStudio7Generator::OutputBuildTool(std::ostream& fout,
-                                                    const char* configName,
-                                                    cmTarget &target,
-                                                    bool isDebug)
+  const char* configName, cmTarget &target, const Options& targetOptions)
 {
   cmGlobalVisualStudio7Generator* gg =
     static_cast<cmGlobalVisualStudio7Generator*>(this->GlobalGenerator);
@@ -1037,17 +1043,7 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(std::ostream& fout,
         }
       }
     std::string libflags;
-    if(const char* flags = target.GetProperty("STATIC_LIBRARY_FLAGS"))
-      {
-      libflags += flags;
-      }
-    std::string libFlagsConfig = "STATIC_LIBRARY_FLAGS_";
-    libFlagsConfig += configTypeUpper;
-    if(const char* flagsConfig = target.GetProperty(libFlagsConfig.c_str()))
-      {
-      libflags += " ";
-      libflags += flagsConfig;
-      }
+    this->GetStaticLibraryFlags(libflags, configTypeUpper, &target);
     if(!libflags.empty())
       {
       fout << "\t\t\t\tAdditionalOptions=\"" << libflags << "\"\n";
@@ -1119,7 +1115,7 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(std::ostream& fout,
     temp += targetNamePDB;
     fout << "\t\t\t\tProgramDatabaseFile=\"" <<
       this->ConvertToXMLOutputPathSingle(temp.c_str()) << "\"\n";
-    if(isDebug)
+    if(targetOptions.IsDebug())
       {
       fout << "\t\t\t\tGenerateDebugInformation=\"TRUE\"\n";
       }
@@ -1217,7 +1213,7 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(std::ostream& fout,
     fout << "\t\t\t\tProgramDatabaseFile=\""
          << path << "/" << targetNamePDB
          << "\"\n";
-    if(isDebug)
+    if(targetOptions.IsDebug())
       {
       fout << "\t\t\t\tGenerateDebugInformation=\"TRUE\"\n";
       }
@@ -1231,9 +1227,14 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(std::ostream& fout,
         {
         fout << "\t\t\t\tSubSystem=\"8\"\n";
         }
-      fout << "\t\t\t\tEntryPointSymbol=\""
-           << (isWin32Executable ? "WinMainCRTStartup" : "mainACRTStartup")
-           << "\"\n";
+
+      if(!linkOptions.GetFlag("EntryPointSymbol"))
+        {
+        const char* entryPointSymbol = targetOptions.UsingUnicode() ?
+          (isWin32Executable ? "wWinMainCRTStartup" : "mainWCRTStartup") :
+          (isWin32Executable ? "WinMainCRTStartup" : "mainACRTStartup");
+        fout << "\t\t\t\tEntryPointSymbol=\"" << entryPointSymbol << "\"\n";
+        }
       }
     else if ( this->FortranProject )
       {
@@ -1264,6 +1265,7 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(std::ostream& fout,
     }
     case cmTarget::UTILITY:
     case cmTarget::GLOBAL_TARGET:
+    case cmTarget::INTERFACE_LIBRARY:
       break;
     }
 }
@@ -1294,7 +1296,8 @@ cmLocalVisualStudio7GeneratorInternals
                                     cmLocalGenerator::UNCHANGED);
       fout << lg->ConvertToXMLOutputPath(rel.c_str()) << " ";
       }
-    else
+    else if (!l->Target
+        || l->Target->GetType() != cmTarget::INTERFACE_LIBRARY)
       {
       fout << l->Value << " ";
       }
@@ -1378,7 +1381,8 @@ void cmLocalVisualStudio7Generator::WriteVCProjFile(std::ostream& fout,
 
   // get the classes from the source lists then add them to the groups
   this->ModuleDefinitionFile = "";
-  std::vector<cmSourceFile*>const & classes = target.GetSourceFiles();
+  std::vector<cmSourceFile*> classes;
+  target.GetSourceFiles(classes);
   for(std::vector<cmSourceFile*>::const_iterator i = classes.begin();
       i != classes.end(); i++)
     {
@@ -1388,9 +1392,9 @@ void cmLocalVisualStudio7Generator::WriteVCProjFile(std::ostream& fout,
       {
       this->ModuleDefinitionFile = (*i)->GetFullPath();
       }
-    cmSourceGroup& sourceGroup =
+    cmSourceGroup* sourceGroup =
       this->Makefile->FindSourceGroup(source.c_str(), sourceGroups);
-    sourceGroup.AssignSource(*i);
+    sourceGroup->AssignSource(*i);
     }
 
   // open the project
@@ -1465,9 +1469,9 @@ cmLocalVisualStudio7GeneratorFCInfo
   cmGeneratorTarget* gt =
     lg->GetGlobalGenerator()->GetGeneratorTarget(&target);
   std::string objectName;
-  if(gt->ExplicitObjectName.find(&sf) != gt->ExplicitObjectName.end())
+  if(gt->HasExplicitObjectName(&sf))
     {
-    objectName = gt->Objects[&sf];
+    objectName = gt->GetObjectName(&sf);
     }
 
   // Compute per-source, per-config information.
@@ -1823,7 +1827,7 @@ WriteCustomRule(std::ostream& fout,
       // make sure the rule runs reliably.
       if(!cmSystemTools::FileExists(source))
         {
-        std::ofstream depout(source);
+        cmsys::ofstream depout(source);
         depout << "Artificial dependency for a custom command.\n";
         }
       fout << this->ConvertToXMLOutputPath(source);
@@ -1957,31 +1961,10 @@ cmLocalVisualStudio7Generator
 
   cmGlobalVisualStudio7Generator* gg =
     static_cast<cmGlobalVisualStudio7Generator *>(this->GlobalGenerator);
-
-  // Compute the version of the Intel plugin to the VS IDE.
-  // If the key does not exist then use a default guess.
-  std::string intelVersion = "9.10";
-  std::string vskey = gg->GetRegistryBase();
-  vskey += "\\Packages\\" CM_INTEL_PLUGIN_GUID ";ProductVersion";
-  cmSystemTools::ReadRegistryValue(vskey.c_str(), intelVersion,
-                                   cmSystemTools::KeyWOW64_32);
-  if (intelVersion.find("13") == 0 ||
-      intelVersion.find("12") == 0 ||
-      intelVersion.find("11") == 0)
-    {
-    // Version 11.x, 12.x, and 13.x actually use 11.0 in project files!
-    intelVersion = "11.0" ;
-    }
-  else if(intelVersion.find("10") == 0)
-    {
-    // Version 10.x actually uses 9.10 in project files!
-    intelVersion = "9.10";
-    }
-
   fout << "<?xml version=\"1.0\" encoding = \"Windows-1252\"?>\n"
        << "<VisualStudioProject\n"
        << "\tProjectCreator=\"Intel Fortran\"\n"
-       << "\tVersion=\"" << intelVersion << "\"\n";
+       << "\tVersion=\"" << gg->GetIntelProjectVersion() << "\"\n";
   const char* keyword = target.GetProperty("VS_KEYWORD");
   if(!keyword)
     {
@@ -2070,6 +2053,11 @@ cmLocalVisualStudio7Generator::WriteProjectStart(std::ostream& fout,
     fout << "\tProjectGUID=\"{" << gg->GetGUID(libName) << "}\"\n";
     }
   this->WriteProjectSCC(fout, target);
+  if(const char* targetFrameworkVersion =
+     target.GetProperty("VS_DOTNET_TARGET_FRAMEWORK_VERSION"))
+    {
+    fout << "\tTargetFrameworkVersion=\"" << targetFrameworkVersion << "\"\n";
+    }
   fout << "\tKeyword=\"" << keyword << "\">\n"
        << "\t<Platforms>\n"
        << "\t\t<Platform\n\t\t\tName=\"" << this->PlatformName << "\"/>\n"
@@ -2237,7 +2225,7 @@ static bool cmLVS6G_IsFAT(const char* dir)
     char volRoot[4] = "_:/";
     volRoot[0] = dir[0];
     char fsName[16];
-    if(GetVolumeInformation(volRoot, 0, 0, 0, 0, 0, fsName, 16) &&
+    if(GetVolumeInformationA(volRoot, 0, 0, 0, 0, 0, fsName, 16) &&
        strstr(fsName, "FAT") != 0)
       {
       return true;

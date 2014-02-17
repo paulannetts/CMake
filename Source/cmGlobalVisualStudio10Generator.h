@@ -25,16 +25,23 @@ class cmGlobalVisualStudio10Generator :
 {
 public:
   cmGlobalVisualStudio10Generator(const char* name,
-    const char* architectureId, const char* additionalPlatformDefinition);
+    const char* platformName, const char* additionalPlatformDefinition);
   static cmGlobalGeneratorFactory* NewFactory();
+
+  virtual bool MatchesGeneratorName(const char* name) const;
 
   virtual bool SetGeneratorToolset(std::string const& ts);
 
-  virtual std::string
-  GenerateBuildCommand(const char* makeProgram,
-                       const char *projectName, const char *projectDir,
-                       const char* additionalOptions, const char *targetName,
-                       const char* config, bool ignoreErrors, bool);
+  virtual void GenerateBuildCommand(
+    std::vector<std::string>& makeCommand,
+    const char* makeProgram,
+    const char* projectName,
+    const char* projectDir,
+    const char* targetName,
+    const char* config,
+    bool fast,
+    std::vector<std::string> const& makeOptions = std::vector<std::string>()
+    );
 
   virtual void AddPlatformDefinitions(cmMakefile* mf);
 
@@ -53,6 +60,9 @@ public:
 
   /** Is the installed VS an Express edition?  */
   bool IsExpressEdition() const { return this->ExpressEdition; }
+
+  /** Is the Microsoft Assembler enabled?  */
+  bool IsMasmEnabled() const { return this->MasmEnabled; }
 
   /** The toolset name for the target platform.  */
   const char* GetPlatformToolset();
@@ -78,11 +88,19 @@ public:
 
   void PathTooLong(cmTarget* target, cmSourceFile* sf,
                    std::string const& sfRel);
+
+  virtual const char* GetToolsVersion() { return "4.0"; }
+
+  virtual void FindMakeProgram(cmMakefile*);
+
 protected:
   virtual const char* GetIDEVersion() { return "10.0"; }
 
+  std::string const& GetMSBuildCommand();
+
   std::string PlatformToolset;
   bool ExpressEdition;
+  bool MasmEnabled;
 
   bool UseFolderProperty();
 
@@ -97,5 +115,11 @@ private:
     std::string SourceRel;
   };
   LongestSourcePath LongestSource;
+
+  std::string MSBuildCommand;
+  bool MSBuildCommandInitialized;
+  virtual std::string FindMSBuildCommand();
+  virtual std::string FindDevEnvCommand();
+  virtual std::string GetVSMakeProgram() { return this->GetMSBuildCommand(); }
 };
 #endif

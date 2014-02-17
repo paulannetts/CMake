@@ -68,6 +68,16 @@ target_link_libraries(imp_testExe1b
   bld_testLibCycleA
   )
 
+add_executable(cmp0022OLD_test cmp0022OLD_test_vs6_1.cpp)
+target_link_libraries(cmp0022OLD_test bld_cmp0022OLD)
+add_executable(cmp0022NEW_test cmp0022NEW_test_vs6_1.cpp)
+target_link_libraries(cmp0022NEW_test bld_cmp0022NEW)
+
+add_executable(cmp0022OLD_exp_test cmp0022OLD_test_vs6_2.cpp)
+target_link_libraries(cmp0022OLD_exp_test exp_cmp0022OLD)
+add_executable(cmp0022NEW_exp_test cmp0022NEW_test_vs6_2.cpp)
+target_link_libraries(cmp0022NEW_exp_test exp_cmp0022NEW)
+
 # Try building a plugin to an executable imported from the build tree.
 add_library(imp_mod1b MODULE imp_mod1.c)
 target_link_libraries(imp_mod1b bld_testExe2)
@@ -200,6 +210,10 @@ if (run_pic_test)
   target_compile_definitions(deps_shared_iface PRIVATE CHECK_PIC_WORKS)
 endif()
 
+if(APPLE)
+  add_subdirectory(framework_interface)
+endif()
+
 #-----------------------------------------------------------------------------
 # Test that targets imported from the build tree have their dependencies
 # evaluated correctly. The above already tests the same for the install tree.
@@ -218,3 +232,83 @@ target_compile_definitions(deps_shared_iface2
   $<$<BOOL:$<TARGET_PROPERTY:CUSTOM_PROP>>:CUSTOM_PROPERTY_IS_ON>
   $<$<STREQUAL:$<TARGET_PROPERTY:CUSTOM_STRING>,testcontent>:CUSTOM_STRING_IS_MATCH>
 )
+
+add_subdirectory(excludedFromAll)
+
+add_executable(iface_test_bld iface_test.cpp)
+target_link_libraries(iface_test_bld bld_testSharedLibDepends)
+
+set_property(TARGET bld_testSharedLibRequired APPEND PROPERTY
+    LINK_INTERFACE_LIBRARIES
+        excludedFromAll
+)
+get_target_property(_configs bld_testSharedLibRequired IMPORTED_CONFIGURATIONS)
+foreach(_config ${_configs})
+    set_property(TARGET bld_testSharedLibRequired APPEND PROPERTY
+        IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}
+        excludedFromAll
+    )
+endforeach()
+unset(_configs)
+add_executable(iface_test_exp iface_test.cpp)
+target_link_libraries(iface_test_exp testSharedLibDepends)
+
+set_property(TARGET testSharedLibDepends APPEND PROPERTY
+    LINK_INTERFACE_LIBRARIES
+        excludedFromAll
+)
+get_target_property(_configs testSharedLibDepends IMPORTED_CONFIGURATIONS)
+foreach(_config ${_configs})
+    set_property(TARGET testSharedLibDepends APPEND PROPERTY
+        IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}
+        excludedFromAll
+    )
+endforeach()
+unset(_configs)
+
+if (((CMAKE_C_COMPILER_ID STREQUAL GNU AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.4)
+    OR CMAKE_C_COMPILER_ID STREQUAL Clang)
+    AND (CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "Ninja"))
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag(-Wunused-variable run_sys_includes_test)
+  if(run_sys_includes_test)
+    # The Bullseye wrapper appears to break the -isystem effect.
+    execute_process(COMMAND ${CMAKE_CXX_COMPILER} --version OUTPUT_VARIABLE out ERROR_VARIABLE out)
+    if("x${out}" MATCHES "Bullseye")
+      set(run_sys_includes_test 0)
+    endif()
+  endif()
+  if (run_sys_includes_test)
+    add_executable(test_system_exp test_system.cpp)
+    target_link_libraries(test_system_exp exp_systemlib)
+    target_compile_options(test_system_exp PRIVATE -Wunused-variable -Werror=unused-variable)
+
+    unset(EXP_ERROR_VARIABLE CACHE)
+    try_compile(EXP_ERROR_VARIABLE
+      "${CMAKE_CURRENT_SOURCE_DIR}/test_system"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test_system.cpp"
+      COMPILE_DEFINITIONS "-Wunused-variable -Werror=unused-variable"
+      LINK_LIBRARIES exp_systemlib
+      OUTPUT_VARIABLE OUTPUT
+      )
+    if(NOT EXP_ERROR_VARIABLE)
+      message(SEND_ERROR "EXP_ERROR_VARIABLE try_compile failed, but it was expected to succeed ${OUTPUT}.")
+    endif()
+
+    add_executable(test_system_bld test_system.cpp)
+    target_link_libraries(test_system_bld bld_systemlib)
+    target_compile_options(test_system_bld PRIVATE -Wunused-variable -Werror=unused-variable)
+
+    unset(BLD_ERROR_VARIABLE CACHE)
+    try_compile(BLD_ERROR_VARIABLE
+      "${CMAKE_CURRENT_SOURCE_DIR}/test_system"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test_system.cpp"
+      COMPILE_DEFINITIONS "-Wunused-variable -Werror=unused-variable"
+      LINK_LIBRARIES bld_systemlib
+      OUTPUT_VARIABLE OUTPUT
+      )
+    if(NOT BLD_ERROR_VARIABLE)
+      message(SEND_ERROR "BLD_ERROR_VARIABLE try_compile failed, but it was expected to succeed.")
+    endif()
+  endif()
+endif()

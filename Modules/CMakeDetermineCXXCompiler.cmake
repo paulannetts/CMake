@@ -91,10 +91,10 @@ else()
     get_filename_component(_CMAKE_USER_CXX_COMPILER_PATH "${CMAKE_CXX_COMPILER}" PATH)
     if(NOT _CMAKE_USER_CXX_COMPILER_PATH)
       find_program(CMAKE_CXX_COMPILER_WITH_PATH NAMES ${CMAKE_CXX_COMPILER})
-      mark_as_advanced(CMAKE_CXX_COMPILER_WITH_PATH)
       if(CMAKE_CXX_COMPILER_WITH_PATH)
         set(CMAKE_CXX_COMPILER ${CMAKE_CXX_COMPILER_WITH_PATH} CACHE STRING "CXX compiler" FORCE)
       endif()
+      unset(CMAKE_CXX_COMPILER_WITH_PATH CACHE)
     endif()
   endif()
   mark_as_advanced(CMAKE_CXX_COMPILER)
@@ -145,17 +145,23 @@ endif ()
 # e.g. powerpc-linux-g++, arm-elf-g++ or i586-mingw32msvc-g++ , optionally
 # with a 3-component version number at the end (e.g. arm-eabi-gcc-4.5.2).
 # The other tools of the toolchain usually have the same prefix
-# NAME_WE cannot be used since then this test will fail for names lile
+# NAME_WE cannot be used since then this test will fail for names like
 # "arm-unknown-nto-qnx6.3.0-gcc.exe", where BASENAME would be
 # "arm-unknown-nto-qnx6" instead of the correct "arm-unknown-nto-qnx6.3.0-"
 
 
 if (CMAKE_CROSSCOMPILING  AND NOT  _CMAKE_TOOLCHAIN_PREFIX)
 
-  if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+  if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     get_filename_component(COMPILER_BASENAME "${CMAKE_CXX_COMPILER}" NAME)
-    if (COMPILER_BASENAME MATCHES "^(.+-)[gc]\\+\\+(-[0-9]+\\.[0-9]+\\.[0-9]+)?(\\.exe)?$")
+    if (COMPILER_BASENAME MATCHES "^(.+-)(clan)?[gc]\\+\\+(-[0-9]+\\.[0-9]+\\.[0-9]+)?(\\.exe)?$")
       set(_CMAKE_TOOLCHAIN_PREFIX ${CMAKE_MATCH_1})
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+      set(_CMAKE_TOOLCHAIN_PREFIX ${CMAKE_CXX_COMPILER_TARGET}-)
+    elseif(COMPILER_BASENAME MATCHES "QCC(\\.exe)?$")
+      if(CMAKE_CXX_COMPILER_TARGET MATCHES "gcc_nto([^_le]+)(le)?.*$")
+        set(_CMAKE_TOOLCHAIN_PREFIX nto${CMAKE_MATCH_1}-)
+      endif()
     endif ()
 
     # if "llvm-" is part of the prefix, remove it, since llvm doesn't have its own binutils
@@ -175,16 +181,17 @@ if (CMAKE_CROSSCOMPILING  AND NOT  _CMAKE_TOOLCHAIN_PREFIX)
 
 endif ()
 
-include(${CMAKE_ROOT}/Modules/CMakeClDeps.cmake)
 include(CMakeFindBinUtils)
 if(MSVC_CXX_ARCHITECTURE_ID)
+  include(${CMAKE_ROOT}/Modules/CMakeClDeps.cmake)
   set(SET_MSVC_CXX_ARCHITECTURE_ID
     "set(MSVC_CXX_ARCHITECTURE_ID ${MSVC_CXX_ARCHITECTURE_ID})")
 endif()
+
 # configure all variables set in this file
 configure_file(${CMAKE_ROOT}/Modules/CMakeCXXCompiler.cmake.in
   ${CMAKE_PLATFORM_INFO_DIR}/CMakeCXXCompiler.cmake
-  @ONLY IMMEDIATE # IMMEDIATE must be here for compatibility mode <= 2.0
+  @ONLY
   )
 
 set(CMAKE_CXX_COMPILER_ENV_VAR "CXX")

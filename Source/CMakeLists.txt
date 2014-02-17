@@ -38,6 +38,12 @@ configure_file(
   "${CMake_BINARY_DIR}/Source/CPack/cmCPackConfigure.h"
   )
 
+# Tell CMake executable in the build tree where to find the source tree.
+configure_file(
+  "${CMake_SOURCE_DIR}/Source/CMakeSourceDir.txt.in"
+  "${CMake_BINARY_DIR}/CMakeFiles/CMakeSourceDir.txt" @ONLY
+  )
+
 # add the include path to find the .h
 include_directories(
   "${CMake_BINARY_DIR}/Source"
@@ -159,16 +165,7 @@ set(SRCS
   cmDependsJavaParserHelper.h
   cmDocumentation.cxx
   cmDocumentationFormatter.cxx
-  cmDocumentationFormatterHTML.cxx
-  cmDocumentationFormatterDocbook.cxx
-  cmDocumentationFormatterMan.cxx
-  cmDocumentationFormatterText.cxx
-  cmDocumentationFormatterUsage.cxx
   cmDocumentationSection.cxx
-  cmDocumentCompileDefinitions.h
-  cmDocumentGeneratorExpressions.h
-  cmDocumentLocationUndefined.h
-  cmDocumentVariables.cxx
   cmDynamicLoader.cxx
   cmDynamicLoader.h
   ${ELF_SRCS}
@@ -189,8 +186,12 @@ set(SRCS
   cmExportSetMap.cxx
   cmExtraCodeBlocksGenerator.cxx
   cmExtraCodeBlocksGenerator.h
+  cmExtraCodeLiteGenerator.cxx
+  cmExtraCodeLiteGenerator.h
   cmExtraEclipseCDT4Generator.cxx
   cmExtraEclipseCDT4Generator.h
+  cmExtraKateGenerator.cxx
+  cmExtraKateGenerator.h
   cmExtraSublimeTextGenerator.cxx
   cmExtraSublimeTextGenerator.h
   cmFileTimeComparison.cxx
@@ -259,8 +260,10 @@ set(SRCS
   cmPropertyDefinitionMap.h
   cmPropertyMap.cxx
   cmPropertyMap.h
-  cmQtAutomoc.cxx
-  cmQtAutomoc.h
+  cmQtAutoGenerators.cxx
+  cmQtAutoGenerators.h
+  cmRST.cxx
+  cmRST.h
   cmScriptGenerator.h
   cmScriptGenerator.cxx
   cmSourceFile.cxx
@@ -288,8 +291,6 @@ set(SRCS
   cmXMLSafe.h
   cmake.cxx
   cmake.h
-  cmakewizard.cxx
-  cmakewizard.h
 
   cm_sha2.h
   cm_sha2.c
@@ -372,8 +373,6 @@ if (WIN32)
       cmVisualStudioSlnParser.cxx
       cmVisualStudioWCEPlatformParser.h
       cmVisualStudioWCEPlatformParser.cxx
-      cmWin32ProcessExecution.cxx
-      cmWin32ProcessExecution.h
       )
   endif()
 endif ()
@@ -396,7 +395,7 @@ if(WIN32 AND NOT CYGWIN AND NOT BORLAND)
   set_source_files_properties(cmcldeps.cxx PROPERTIES COMPILE_DEFINITIONS _WIN32_WINNT=0x0501)
   add_executable(cmcldeps cmcldeps.cxx)
   target_link_libraries(cmcldeps CMakeLib)
-  install_targets(/bin cmcldeps)
+  install(TARGETS cmcldeps DESTINATION bin)
 endif()
 
 # create a library used by the command line and the GUI
@@ -441,6 +440,7 @@ set(CTEST_SRCS cmCTest.cxx
   CTest/cmParseCacheCoverage.cxx
   CTest/cmParseGTMCoverage.cxx
   CTest/cmParsePHPCoverage.cxx
+  CTest/cmParsePythonCoverage.cxx
   CTest/cmCTestEmptyBinaryDirectoryCommand.cxx
   CTest/cmCTestGenericHandler.cxx
   CTest/cmCTestHandlerCommand.cxx
@@ -477,6 +477,8 @@ set(CTEST_SRCS cmCTest.cxx
   CTest/cmCTestGIT.h
   CTest/cmCTestHG.cxx
   CTest/cmCTestHG.h
+  CTest/cmCTestP4.cxx
+  CTest/cmCTestP4.h
   )
 
 # Build CTestLib
@@ -498,8 +500,6 @@ set(CPACK_SRCS
   CPack/cmCPackTarBZip2Generator.cxx
   CPack/cmCPackTarCompressGenerator.cxx
   CPack/cmCPackZIPGenerator.cxx
-  CPack/cmCPackDocumentVariables.cxx
-  CPack/cmCPackDocumentMacros.cxx
   )
 
 if(CYGWIN)
@@ -521,6 +521,7 @@ if(WIN32)
     CPack/WiX/cmCPackWIXGenerator.cxx
     CPack/WiX/cmWIXSourceWriter.cxx
     CPack/WiX/cmWIXRichTextFormatWriter.cxx
+    CPack/WiX/cmWIXPatchParser.cxx
   )
 endif()
 
@@ -547,18 +548,8 @@ if(APPLE)
 endif()
 
 # Build CMake executable
-add_executable(cmake cmakemain.cxx)
+add_executable(cmake cmakemain.cxx cmcmd.cxx cmcmd.h)
 target_link_libraries(cmake CMakeLib)
-
-# Build special executable for running programs on Windows 98.
-# Included on any Windows (unconditional packaging required!).
-if(WIN32)
-  if(NOT UNIX)
-    add_executable(cmw9xcom cmw9xcom.cxx)
-    target_link_libraries(cmw9xcom CMakeLib)
-    install_targets(/bin cmw9xcom)
-  endif()
-endif()
 
 # Build CTest executable
 add_executable(ctest ctest.cxx)
@@ -582,11 +573,9 @@ endif()
 include (${CMake_BINARY_DIR}/Source/LocalUserOptions.cmake OPTIONAL)
 include (${CMake_SOURCE_DIR}/Source/LocalUserOptions.cmake OPTIONAL)
 
-install_targets(/bin cmake)
-install_targets(/bin ctest)
-install_targets(/bin cpack)
+install(TARGETS cmake ctest cpack DESTINATION bin)
 if(APPLE)
-  install_targets(/bin cmakexbuild)
+  install(TARGETS cmakexbuild DESTINATION bin)
 endif()
 
-install_files(${CMAKE_DATA_DIR}/include cmCPluginAPI.h)
+install(FILES cmCPluginAPI.h DESTINATION ${CMAKE_DATA_DIR}/include)

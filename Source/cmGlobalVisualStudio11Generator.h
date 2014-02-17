@@ -21,9 +21,11 @@ class cmGlobalVisualStudio11Generator:
 {
 public:
   cmGlobalVisualStudio11Generator(const char* name,
-    const char* architectureId, const char* additionalPlatformDefinition, 
+    const char* platformName, const char* additionalPlatformDefinition,
     const char* defaultMultiPlatform, const char* platformToolset = "v110");
   static cmGlobalGeneratorFactory* NewFactory();
+
+  virtual bool MatchesGeneratorName(const char* name) const;
 
   virtual void EnableLanguage(std::vector<std::string>const& languages,
                               cmMakefile *, bool optional);
@@ -45,8 +47,10 @@ public:
 protected:
   virtual const char* GetIDEVersion() { return "11.0"; }
   bool UseFolderProperty();
+  static std::set<std::string> GetInstalledWindowsCESDKs();
 private:
   class Factory;
+  friend class Factory;
   std::vector<std::string> multiPlatforms;
   std::string defaultMultiPlatform;
 };

@@ -59,10 +59,10 @@ else()
   get_filename_component(_CMAKE_USER_ASM${ASM_DIALECT}_COMPILER_PATH "${CMAKE_ASM${ASM_DIALECT}_COMPILER}" PATH)
   if(NOT _CMAKE_USER_ASM${ASM_DIALECT}_COMPILER_PATH)
     find_program(CMAKE_ASM${ASM_DIALECT}_COMPILER_WITH_PATH NAMES ${CMAKE_ASM${ASM_DIALECT}_COMPILER})
-    mark_as_advanced(CMAKE_ASM${ASM_DIALECT}_COMPILER_WITH_PATH)
     if(CMAKE_ASM${ASM_DIALECT}_COMPILER_WITH_PATH)
       set(CMAKE_ASM${ASM_DIALECT}_COMPILER ${CMAKE_ASM${ASM_DIALECT}_COMPILER_WITH_PATH} CACHE FILEPATH "Assembler" FORCE)
     endif()
+    unset(CMAKE_ASM${ASM_DIALECT}_COMPILER_WITH_PATH CACHE)
   endif()
 endif()
 mark_as_advanced(CMAKE_ASM${ASM_DIALECT}_COMPILER)
@@ -124,7 +124,7 @@ endif()
 # e.g. powerpc-linux-gas, arm-elf-gas or i586-mingw32msvc-gas , optionally
 # with a 3-component version number at the end
 # The other tools of the toolchain usually have the same prefix
-# NAME_WE cannot be used since then this test will fail for names lile
+# NAME_WE cannot be used since then this test will fail for names like
 # "arm-unknown-nto-qnx6.3.0-gas.exe", where BASENAME would be
 # "arm-unknown-nto-qnx6" instead of the correct "arm-unknown-nto-qnx6.3.0-"
 if (NOT _CMAKE_TOOLCHAIN_PREFIX)
@@ -167,7 +167,7 @@ set(_CMAKE_ASM_COMPILER_ENV_VAR "${CMAKE_ASM${ASM_DIALECT}_COMPILER_ENV_VAR}")
 
 # configure variables set in this file for fast reload later on
 configure_file(${CMAKE_ROOT}/Modules/CMakeASMCompiler.cmake.in
-  ${CMAKE_PLATFORM_INFO_DIR}/CMakeASM${ASM_DIALECT}Compiler.cmake IMMEDIATE @ONLY)
+  ${CMAKE_PLATFORM_INFO_DIR}/CMakeASM${ASM_DIALECT}Compiler.cmake @ONLY)
 
 set(_CMAKE_ASM_COMPILER)
 set(_CMAKE_ASM_COMPILER_ARG1)

@@ -33,12 +33,14 @@ cmInstallExportGenerator::cmInstallExportGenerator(
   std::vector<std::string> const& configurations,
   const char* component,
   const char* filename, const char* name_space,
+  bool exportOld,
   cmMakefile* mf)
   :cmInstallGenerator(destination, configurations, component)
   ,ExportSet(exportSet)
   ,FilePermissions(file_permissions)
   ,FileName(filename)
   ,Namespace(name_space)
+  ,ExportOld(exportOld)
   ,Makefile(mf)
 {
   this->EFGen = new cmExportInstallFileGenerator(this);
@@ -137,6 +139,7 @@ void cmInstallExportGenerator::GenerateScript(std::ostream& os)
   // Generate the import file for this export set.
   this->EFGen->SetExportFile(this->MainImportFile.c_str());
   this->EFGen->SetNamespace(this->Namespace.c_str());
+  this->EFGen->SetExportOld(this->ExportOld);
   if(this->ConfigurationTypes->empty())
     {
     if(this->ConfigurationName && *this->ConfigurationName)
@@ -180,11 +183,11 @@ cmInstallExportGenerator::GenerateScriptConfigs(std::ostream& os,
     {
     files.push_back(i->second);
     std::string config_test = this->CreateConfigTest(i->first.c_str());
-    os << indent << "IF(" << config_test << ")\n";
+    os << indent << "if(" << config_test << ")\n";
     this->AddInstallRule(os, cmInstallType_FILES, files, false,
                          this->FilePermissions.c_str(), 0, 0, 0,
                          indent.Next());
-    os << indent << "ENDIF(" << config_test << ")\n";
+    os << indent << "endif()\n";
     files.clear();
     }
 }
@@ -199,23 +202,23 @@ void cmInstallExportGenerator::GenerateScriptActions(std::ostream& os,
   installedDir += "/";
   std::string installedFile = installedDir;
   installedFile += this->FileName;
-  os << indent << "IF(EXISTS \"" << installedFile << "\")\n";
+  os << indent << "if(EXISTS \"" << installedFile << "\")\n";
   Indent indentN = indent.Next();
   Indent indentNN = indentN.Next();
   Indent indentNNN = indentNN.Next();
-  os << indentN << "FILE(DIFFERENT EXPORT_FILE_CHANGED FILES\n"
+  os << indentN << "file(DIFFERENT EXPORT_FILE_CHANGED FILES\n"
      << indentN << "     \"" << installedFile << "\"\n"
      << indentN << "     \"" << this->MainImportFile << "\")\n";
-  os << indentN << "IF(EXPORT_FILE_CHANGED)\n";
-  os << indentNN << "FILE(GLOB OLD_CONFIG_FILES \"" << installedDir
+  os << indentN << "if(EXPORT_FILE_CHANGED)\n";
+  os << indentNN << "file(GLOB OLD_CONFIG_FILES \"" << installedDir
      << this->EFGen->GetConfigImportFileGlob() << "\")\n";
-  os << indentNN << "IF(OLD_CONFIG_FILES)\n";
-  os << indentNNN << "MESSAGE(STATUS \"Old export file \\\"" << installedFile
+  os << indentNN << "if(OLD_CONFIG_FILES)\n";
+  os << indentNNN << "message(STATUS \"Old export file \\\"" << installedFile
      << "\\\" will be replaced.  Removing files [${OLD_CONFIG_FILES}].\")\n";
-  os << indentNNN << "FILE(REMOVE ${OLD_CONFIG_FILES})\n";
-  os << indentNN << "ENDIF(OLD_CONFIG_FILES)\n";
-  os << indentN << "ENDIF(EXPORT_FILE_CHANGED)\n";
-  os << indent << "ENDIF()\n";
+  os << indentNNN << "file(REMOVE ${OLD_CONFIG_FILES})\n";
+  os << indentNN << "endif()\n";
+  os << indentN << "endif()\n";
+  os << indent << "endif()\n";
 
   // Install the main export file.
   std::vector<std::string> files;

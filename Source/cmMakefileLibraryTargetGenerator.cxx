@@ -21,15 +21,18 @@
 
 //----------------------------------------------------------------------------
 cmMakefileLibraryTargetGenerator
-::cmMakefileLibraryTargetGenerator(cmTarget* target):
-  cmMakefileTargetGenerator(target)
+::cmMakefileLibraryTargetGenerator(cmGeneratorTarget* target):
+  cmMakefileTargetGenerator(target->Target)
 {
   this->CustomCommandDriver = OnDepends;
-  this->Target->GetLibraryNames(
-    this->TargetNameOut, this->TargetNameSO, this->TargetNameReal,
-    this->TargetNameImport, this->TargetNamePDB, this->ConfigName);
+  if (this->Target->GetType() != cmTarget::INTERFACE_LIBRARY)
+    {
+    this->Target->GetLibraryNames(
+      this->TargetNameOut, this->TargetNameSO, this->TargetNameReal,
+      this->TargetNameImport, this->TargetNamePDB, this->ConfigName);
+    }
 
-  this->OSXBundleGenerator = new cmOSXBundleGenerator(this->Target,
+  this->OSXBundleGenerator = new cmOSXBundleGenerator(target,
                                                       this->ConfigName);
   this->OSXBundleGenerator->SetMacContentFolders(&this->MacContentFolders);
 }
@@ -144,12 +147,8 @@ void cmMakefileLibraryTargetGenerator::WriteStaticLibraryRules()
     }
 
   std::string extraFlags;
-  this->LocalGenerator->AppendFlags
-    (extraFlags,this->Target->GetProperty("STATIC_LIBRARY_FLAGS"));
-  std::string staticLibraryFlagsConfig = "STATIC_LIBRARY_FLAGS_";
-  staticLibraryFlagsConfig += cmSystemTools::UpperCase(this->ConfigName);
-  this->LocalGenerator->AppendFlags
-    (extraFlags, this->Target->GetProperty(staticLibraryFlagsConfig.c_str()));
+  this->LocalGenerator->GetStaticLibraryFlags(extraFlags,
+    cmSystemTools::UpperCase(this->ConfigName), this->Target);
   this->WriteLibraryRules(linkRuleVar.c_str(), extraFlags.c_str(), false);
 }
 
@@ -581,34 +580,12 @@ void cmMakefileLibraryTargetGenerator::WriteLibraryRules
   vars.CMTarget = this->Target;
   vars.Language = linkLanguage;
   vars.Objects = buildObjs.c_str();
-  std::string objdir = cmake::GetCMakeFilesDirectoryPostSlash();
-  objdir += this->Target->GetName();
-  objdir += ".dir";
-  objdir = this->Convert(objdir.c_str(),
-                         cmLocalGenerator::START_OUTPUT,
-                         cmLocalGenerator::SHELL);
-  vars.ObjectDir = objdir.c_str();
+  std::string objectDir = this->Target->GetSupportDirectory();
+  objectDir = this->Convert(objectDir.c_str(),
+                            cmLocalGenerator::START_OUTPUT,
+                            cmLocalGenerator::SHELL);
+  vars.ObjectDir = objectDir.c_str();
   vars.Target = targetOutPathReal.c_str();
-
-  if(this->Target->GetType() == cmTarget::SHARED_LIBRARY)
-    {
-    if (const char *rootPath =
-                    this->Makefile->GetSafeDefinition("CMAKE_SYSROOT"))
-      {
-      if (*rootPath)
-        {
-        if (const char *sysrootFlag =
-                        this->Makefile->GetDefinition("CMAKE_SYSROOT_FLAG"))
-          {
-          linkFlags += " ";
-          linkFlags += sysrootFlag;
-          linkFlags += this->LocalGenerator->EscapeForShell(rootPath);
-          linkFlags += " ";
-          }
-        }
-      }
-    }
-
   vars.LinkLibraries = linkLibs.c_str();
   vars.ObjectsQuoted = buildObjs.c_str();
   if (this->Target->HasSOName(this->ConfigName))

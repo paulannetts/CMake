@@ -21,15 +21,15 @@
 
 //----------------------------------------------------------------------------
 cmMakefileExecutableTargetGenerator
-::cmMakefileExecutableTargetGenerator(cmTarget* target):
-  cmMakefileTargetGenerator(target)
+::cmMakefileExecutableTargetGenerator(cmGeneratorTarget* target):
+  cmMakefileTargetGenerator(target->Target)
 {
   this->CustomCommandDriver = OnDepends;
   this->Target->GetExecutableNames(
     this->TargetNameOut, this->TargetNameReal, this->TargetNameImport,
     this->TargetNamePDB, this->ConfigName);
 
-  this->OSXBundleGenerator = new cmOSXBundleGenerator(this->Target,
+  this->OSXBundleGenerator = new cmOSXBundleGenerator(target,
                                                       this->ConfigName);
   this->OSXBundleGenerator->SetMacContentFolders(&this->MacContentFolders);
 }
@@ -338,13 +338,11 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
   vars.CMTarget = this->Target;
   vars.Language = linkLanguage;
   vars.Objects = buildObjs.c_str();
-  std::string objdir = cmake::GetCMakeFilesDirectoryPostSlash();
-  objdir += this->Target->GetName();
-  objdir += ".dir";
-  objdir = this->Convert(objdir.c_str(),
-                         cmLocalGenerator::START_OUTPUT,
-                         cmLocalGenerator::SHELL);
-  vars.ObjectDir = objdir.c_str();
+  std::string objectDir = this->Target->GetSupportDirectory();
+  objectDir = this->Convert(objectDir.c_str(),
+                            cmLocalGenerator::START_OUTPUT,
+                            cmLocalGenerator::SHELL);
+  vars.ObjectDir = objectDir.c_str();
   vars.Target = targetOutPathReal.c_str();
   vars.TargetPDB = targetOutPathPDB.c_str();
 
@@ -364,22 +362,6 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
   }
   vars.TargetVersionMajor = targetVersionMajor.c_str();
   vars.TargetVersionMinor = targetVersionMinor.c_str();
-
-  if (const char *rootPath =
-                    this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-    {
-    if (*rootPath)
-      {
-      if (const char *sysrootFlag =
-                      this->Makefile->GetDefinition("CMAKE_SYSROOT_FLAG"))
-        {
-        flags += " ";
-        flags += sysrootFlag;
-        flags += this->LocalGenerator->EscapeForShell(rootPath);
-        flags += " ";
-        }
-      }
-    }
 
   vars.LinkLibraries = linkLibs.c_str();
   vars.Flags = flags.c_str();

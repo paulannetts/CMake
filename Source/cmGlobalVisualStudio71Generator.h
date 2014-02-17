@@ -23,7 +23,7 @@
 class cmGlobalVisualStudio71Generator : public cmGlobalVisualStudio7Generator
 {
 public:
-  cmGlobalVisualStudio71Generator();
+  cmGlobalVisualStudio71Generator(const char* platformName = NULL);
   static cmGlobalGeneratorFactory* NewFactory() {
     return new cmGlobalGeneratorSimpleFactory
       <cmGlobalVisualStudio71Generator>(); }
@@ -59,9 +59,11 @@ protected:
                             std::vector<cmLocalGenerator*>& generators);
   virtual void WriteSolutionConfigurations(std::ostream& fout);
   virtual void WriteProject(std::ostream& fout,
-                            const char* name, const char* path, cmTarget &t);
+                            const char* name, const char* path,
+                            cmTarget const& t);
   virtual void WriteProjectDepends(std::ostream& fout,
-                           const char* name, const char* path, cmTarget &t);
+                           const char* name, const char* path,
+                           cmTarget const& t);
   virtual void WriteProjectConfigurations(
     std::ostream& fout, const char* name, cmTarget::TargetType type,
     const std::set<std::string>& configsPartOfDefaultBuild,

@@ -39,46 +39,6 @@ public:
    */
   virtual const char* GetName() const { return "target_include_directories";}
 
-  /**
-   * Succinct documentation.
-   */
-  virtual const char* GetTerseDocumentation() const
-    {
-    return
-      "Add include directories to a target.";
-    }
-
-  /**
-   * More documentation.
-   */
-  virtual const char* GetFullDocumentation() const
-    {
-    return
-      "  target_include_directories(<target> [BEFORE] "
-      "<INTERFACE|PUBLIC|PRIVATE> [items1...]\n"
-      "    [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])\n"
-      "Specify include directories or targets to use when compiling a given "
-      "target.  "
-      "The named <target> must have been created by a command such as "
-      "add_executable or add_library and must not be an IMPORTED target.\n"
-      "If BEFORE is specified, the content will be prepended to the property "
-      "instead of being appended.\n"
-      "The INTERFACE, PUBLIC and PRIVATE keywords are required to specify "
-      "the scope of the following arguments.  PRIVATE and PUBLIC items will "
-      "populate the INCLUDE_DIRECTORIES property of <target>.  PUBLIC and "
-      "INTERFACE items will populate the INTERFACE_INCLUDE_DIRECTORIES "
-      "property of <target>.   "
-      "The following arguments specify include directories.  Specified "
-      "include directories may be absolute paths or relative paths.  "
-      "Repeated calls for the same <target> append items in the order called."
-      "\n"
-      "Arguments to target_include_directories may use \"generator "
-      "expressions\" with the syntax \"$<...>\".  "
-      CM_DOCUMENT_COMMAND_GENERATOR_EXPRESSIONS
-      CM_DOCUMENT_LANGUAGE_GENERATOR_EXPRESSIONS
-      ;
-    }
-
   cmTypeMacro(cmTargetIncludeDirectoriesCommand, cmTargetPropCommandBase);
 
 private:
@@ -87,7 +47,11 @@ private:
 
   virtual void HandleDirectContent(cmTarget *tgt,
                                    const std::vector<std::string> &content,
-                                   bool prepend);
+                                   bool prepend, bool system);
+  virtual void HandleInterfaceContent(cmTarget *tgt,
+                                   const std::vector<std::string> &content,
+                                   bool prepend, bool system);
+
   virtual std::string Join(const std::vector<std::string> &content);
 };
 

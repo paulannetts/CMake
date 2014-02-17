@@ -45,13 +45,6 @@ void cmExtraSublimeTextGenerator
 {
   entry.Name = this->GetName();
   entry.Brief = "Generates Sublime Text 2 project files.";
-  entry.Full =
-    "Project files for Sublime Text 2 will be created in the top directory "
-    "and in every subdirectory which features a CMakeLists.txt file "
-    "containing a PROJECT() call. "
-    "Additionally Makefiles (or build.ninja files) are generated into the "
-    "build tree.  The appropriate make program can build the project through "
-    "the default make target.  A \"make install\" target is also provided.";
 }
 
 cmExtraSublimeTextGenerator::cmExtraSublimeTextGenerator()
@@ -179,30 +172,10 @@ void cmExtraSublimeTextGenerator::
         {
         case cmTarget::GLOBAL_TARGET:
           {
-          bool insertTarget = false;
           // Only add the global targets from CMAKE_BINARY_DIR,
           // not from the subdirs
           if (strcmp(makefile->GetStartOutputDirectory(),
                      makefile->GetHomeOutputDirectory())==0)
-            {
-            insertTarget = true;
-            // only add the "edit_cache" target if it's not ccmake, because
-            // this will not work within the IDE
-            if (ti->first == "edit_cache")
-              {
-              const char* editCommand = makefile->GetDefinition
-                                                        ("CMAKE_EDIT_COMMAND");
-              if (editCommand == 0)
-                {
-                insertTarget = false;
-                }
-              else if (strstr(editCommand, "ccmake")!=NULL)
-                {
-                insertTarget = false;
-                }
-              }
-            }
-          if (insertTarget)
             {
             this->AppendTarget(fout, ti->first.c_str(), *lg, 0,
                                make.c_str(), makefile, compiler.c_str(),
@@ -264,7 +237,8 @@ void cmExtraSublimeTextGenerator::
     {
       cmGeneratorTarget *gtgt = this->GlobalGenerator
                                     ->GetGeneratorTarget(target);
-      std::vector<cmSourceFile*> const& sourceFiles = target->GetSourceFiles();
+      std::vector<cmSourceFile*> sourceFiles;
+      target->GetSourceFiles(sourceFiles);
       std::vector<cmSourceFile*>::const_iterator sourceFilesEnd =
         sourceFiles.end();
       for (std::vector<cmSourceFile*>::const_iterator iter =
@@ -421,7 +395,7 @@ cmExtraSublimeTextGenerator::ComputeFlagsForObject(cmSourceFile* source,
   std::vector<std::string> includes;
   lg->GetIncludeDirectories(includes, gtgt, language, config);
   std::string includeFlags =
-    lg->GetIncludeFlags(includes, language, true); // full include paths
+    lg->GetIncludeFlags(includes, gtgt, language, true); // full include paths
   lg->AppendFlags(flags, includeFlags.c_str());
   }
 
@@ -463,7 +437,7 @@ ComputeDefines(cmSourceFile *source, cmLocalGenerator* lg, cmTarget *target,
     }
 
   // Add preprocessor definitions for this target and configuration.
-  lg->AppendDefines(defines, target->GetCompileDefinitions(config));
+  lg->AddCompileDefinitions(defines, target, config);
   lg->AppendDefines(defines, source->GetProperty("COMPILE_DEFINITIONS"));
   {
   std::string defPropName = "COMPILE_DEFINITIONS_";
