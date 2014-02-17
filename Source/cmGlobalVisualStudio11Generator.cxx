@@ -25,7 +25,7 @@ public:
     if(!strcmp(name, vs11Win32generatorName))
       {
       return new cmGlobalVisualStudio11Generator(
-        vs11Win32generatorName, NULL, NULL, "Win32;x64");
+        vs11Win32generatorName, NULL, NULL, "Win32");
       }
     if(!strcmp(name, vs11Win64generatorName))
       {
