@@ -273,6 +273,12 @@ void cmVisualStudio10TargetGenerator::Generate()
       }
     }
 
+  bool isWinRtComponent = this->Target->GetPropertyAsBool("VS_WINRT_IS_COMPONENT");
+  if(isWinRtComponent)
+    {
+    this->WriteString("<WinMDAssembly>true</WinMDAssembly>", 2);
+    }
+  
   const char* vsGlobalKeyword =
     this->Target->GetProperty("VS_GLOBAL_KEYWORD");
   if(!vsGlobalKeyword)
@@ -288,6 +294,7 @@ void cmVisualStudio10TargetGenerator::Generate()
 
   const char* vsGlobalRootNamespace =
     this->Target->GetProperty("VS_GLOBAL_ROOTNAMESPACE");
+
   if(vsGlobalRootNamespace)
     {
     this->WriteString("<RootNamespace>", 2);
@@ -418,6 +425,11 @@ void cmVisualStudio10TargetGenerator::WriteWinRTReferences()
      this->Target->GetProperty("VS_WINRT_REFERENCES"))
     {
     cmSystemTools::ExpandListArgument(vsWinRTReferences, references);
+    }
+  bool isWinRtComponent = this->Target->GetPropertyAsBool("VS_WINRT_IS_COMPONENT");
+  if (isWinRtComponent && references.empty())
+    {
+      references.push_back("platform.winmd");
     }
   if(!references.empty())
     {
@@ -1664,7 +1676,19 @@ cmVisualStudio10TargetGenerator::ComputeLinkOptions(std::string const& config)
   imLib += "/";
   imLib += targetNameImport;
 
-  linkOptions.AddFlag("ImportLibrary", imLib.c_str());
+  // A Windows Runtime component uses internal .NET metadata, so doesn't have an import library
+  bool isWinRtComponent = this->Target->GetPropertyAsBool("VS_WINRT_IS_COMPONENT");
+  if (isWinRtComponent)
+    {
+    linkOptions.AddFlag("GenerateWindowsMetadata", "true");
+    linkOptions.AddFlag("IgnoreAllDefaultLibraries", "false");
+    linkOptions.AddFlag("IgnoreSpecificDefaultLibraries", "ole32.lib;%(IgnoreSpecificDefaultLibraries)");
+    }
+  else
+    {
+    linkOptions.AddFlag("ImportLibrary", imLib.c_str());
+    }
+
   linkOptions.AddFlag("ProgramDataBaseFile", pdb.c_str());
   linkOptions.Parse(flags.c_str());
   if(!this->GeneratorTarget->ModuleDefinitionFile.empty())
@@ -1693,7 +1717,12 @@ cmVisualStudio10TargetGenerator::WriteLinkOptions(std::string const& config)
   linkOptions.OutputFlagMap(*this->BuildFileStream, "      ");
 
   this->WriteString("</Link>\n", 2);
-  if(!this->GlobalGenerator->NeedLinkLibraryDependencies(*this->Target))
+
+  // TODO: this is a workaround between getting multi-platform linking to work and other issues.
+  // This needs a bit more thought about the wider implications.
+  // multi-platform doesn't work well without this - VS is the best at figuring this out anyway!
+  bool isWinRtComponent = this->Target->GetPropertyAsBool("VS_WINRT_IS_COMPONENT");
+  if (!isWinRtComponent && !this->GlobalGenerator->NeedLinkLibraryDependencies(*this->Target))
     {
     this->WriteString("<ProjectReference>\n", 2);
     this->WriteString(
@@ -1709,8 +1738,21 @@ void cmVisualStudio10TargetGenerator::AddLibraries(
   typedef cmComputeLinkInformation::ItemVector ItemVector;
   ItemVector libs = cli.GetItems();
   const char* sep = ";";
+  bool isThisAWinRtComponent = this->Target->GetPropertyAsBool("VS_WINRT_IS_COMPONENT");
+
   for(ItemVector::const_iterator l = libs.begin(); l != libs.end(); ++l)
     {
+    if (l->Target != nullptr)
+      {
+      bool isTargetAWinRtComponent = l->Target->GetPropertyAsBool("VS_WINRT_IS_COMPONENT");
+      if (isTargetAWinRtComponent || isThisAWinRtComponent)
+        {
+        // TODO: fix Multi-platform link in a more general way
+        // Make sure that anything that isn't a target is kept in this path.
+        continue;
+        }
+      }
+    
     if(l->IsPath)
       {
       std::string path = this->LocalGenerator->

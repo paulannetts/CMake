@@ -1426,6 +1426,12 @@ void cmTarget::DefineProperties(cmake *cm)
      "generated Visual Studio project. For example, \"Windows;"
      "Windows.UI.Core\".");
   cm->DefineProperty
+      ("VS_WINRT_IS_COMPONENT", cmProperty::TARGET,
+      "Visual Studio project as a Windows Runtime Component for Windows Phone or Modern app",
+      "This is a special DLL which is referenced from another Windows Runtime project, and "
+      "generates .NET metadata inside the DLL. "
+      "This implies a VS_WINRT_REFERENCES of at least \"Platform.winmd\".");
+  cm->DefineProperty
     ("VS_GLOBAL_<variable>", cmProperty::TARGET,
      "Visual Studio project-specific global variable.",
      "Tell the Visual Studio generator to set the global variable "

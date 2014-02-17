@@ -1,0 +1,5 @@
+add_library(WinRtWp8Component2 SHARED MathFunctions.cpp)
+set_target_properties(WinRtWp8Component2 PROPERTIES COMPILE_FLAGS "/ZW /AI$(WindowsSDK_MetadataPath);$(AdditionalUsingDirectories)")
+set_target_properties(WinRtWp8Component2 PROPERTIES VS_WINRT_IS_COMPONENT "true")
+set_target_properties(WinRtWp8Component2 PROPERTIES FOLDER MyApp)
+target_link_libraries(WinRtWp8Component2 WinRtWp8Component1)
